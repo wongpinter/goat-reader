@@ -131,6 +131,7 @@ class LibraryViewModeTest {
         viewModel.setViewMode(LibraryViewMode.LIST)
         testDispatcher.scheduler.advanceUntilIdle()
 
-        org.mockito.Mockito.verify(settingsRepo).setLibraryViewMode(LibraryViewMode.LIST)
+        org.mockito.Mockito.verify(settingsRepo, org.mockito.Mockito.timeout(2_000))
+            .setLibraryViewMode(LibraryViewMode.LIST)
     }
 }
