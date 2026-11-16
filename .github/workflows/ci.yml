@@ -54,13 +54,16 @@ jobs:
           fi
           umask 077
           printf '%s' "$RELEASE_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/goatreader-release.p12"
-          echo "GOATREADER_KEYSTORE_PATH=$RUNNER_TEMP/goatreader-release.p12" >> "$GITHUB_ENV"
 
       - name: Run unit tests
         run: ./gradlew test --stacktrace
 
       - name: Assemble debug APK
         run: ./gradlew assembleDebug --stacktrace
+
+      - name: Set release keystore path
+        if: github.event_name != 'pull_request'
+        run: echo "GOATREADER_KEYSTORE_PATH=$RUNNER_TEMP/goatreader-release.p12" >> "$GITHUB_ENV"
 
       - name: Verify optimized release and Android lint
         env:
