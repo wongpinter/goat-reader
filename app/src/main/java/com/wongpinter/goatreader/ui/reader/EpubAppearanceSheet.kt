@@ -42,10 +42,10 @@ import com.wongpinter.goatreader.data.ReaderSettings
 import com.wongpinter.goatreader.data.ReaderTextAlignment
 import com.wongpinter.goatreader.data.ReadingMode
 import com.wongpinter.goatreader.data.ChapterPull
-import java.util.Locale
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.res.stringResource
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -243,9 +243,10 @@ internal fun EpubAppearanceSheet(
                 }
 
                 AppearanceSection("Spacing and layout") {
+                    val locale = LocalLocale.current.platformLocale
                     StepSlider(
                         label = "Line spacing",
-                        valueLabel = String.format(Locale.getDefault(), "%.1f×", settings.lineHeight),
+                        valueLabel = String.format(locale, "%.1f×", settings.lineHeight),
                         value = settings.lineHeight.coerceIn(1f, 2f),
                         range = 1f..2f,
                         steps = 9,

@@ -2509,7 +2509,8 @@ private fun PagedReader(
         }
         // Large publications use bounded item windows instead of materializing every page.
         val windowedPagination = requiresWindowedPagination(ready.chapterStarts.size, ready.items.size)
-        val activeRange = viewModel.pagination.value
+        val pagination by viewModel.pagination.collectAsStateWithLifecycle()
+        val activeRange = pagination
             ?.takeIf { it.windowed && it.key.startsWith(spec.key) }
             ?.itemRange
         val fallbackAnchor = if (activeRange != null && displayedIndex.intValue !in activeRange) {
