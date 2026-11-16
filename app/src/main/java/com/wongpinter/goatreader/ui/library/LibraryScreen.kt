@@ -1,0 +1,2428 @@
+package com.wongpinter.goatreader.ui.library
+
+import com.wongpinter.goatreader.ui.components.GoatSnackbarHost
+import com.wongpinter.goatreader.ui.theme.floatingSurface
+import android.net.Uri
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.VisibilityThreshold
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.GridView
+import androidx.compose.material.icons.outlined.ViewAgenda
+import androidx.compose.material.icons.rounded.AutoStories
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.FolderOpen
+import androidx.compose.material.icons.rounded.GridView
+import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.ViewAgenda
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialShapes
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.toShape
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.State
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.unit.Velocity
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.lerp
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.em
+import androidx.compose.foundation.text.TextAutoSize
+import androidx.compose.ui.util.lerp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import coil3.compose.AsyncImage
+import com.wongpinter.goatreader.R
+import com.wongpinter.goatreader.ui.components.GoatSegmentedControl
+import com.wongpinter.goatreader.data.LibraryViewMode
+import com.wongpinter.goatreader.data.model.Book
+import com.wongpinter.goatreader.data.model.BookFormat
+import com.wongpinter.goatreader.ui.theme.LocalGoatColors
+import kotlin.math.roundToInt
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.foundation.combinedClickable
+import com.wongpinter.goatreader.data.model.bookOrderKey
+import androidx.compose.material.icons.rounded.LibraryAdd
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.ui.platform.ViewConfiguration
+import androidx.compose.ui.platform.LocalViewConfiguration
+import androidx.compose.runtime.CompositionLocalProvider
+
+// Numbers below come straight from the 412x916dp design mock, 1:1.
+private val GridGap = 14.dp
+private val ListGap = 8.dp
+private val SidePadding = 20.dp
+private val BottomInset = 20.dp
+
+/**
+ * Which shelf, if any, has just been created and still owes the user an
+ * arrival animation.
+ *
+ * A holder rather than a bare `String?` so the tiles can read it themselves.
+ * Read at the `items` call site instead, creating one folder would invalidate
+ * every book tile on screen twice.
+ */
+@Stable
+private class ShelfPopState {
+    /**
+     * The book or folder that has just appeared, so it can grow into place
+     * while the tiles around it slide aside. Books use it too now: one arriving
+     * from outside the app should be visible as an arrival, not just be there
+     * the next time you look.
+     */
+    var entryId by mutableStateOf<String?>(null)
+}
+
+/** Scale a brand-new folder grows from. */
+private const val ShelfPopFrom = 0.62f
+
+/** Material fade-through, applied to the entries when the view mode changes. */
+private const val ModeSwapOutMillis = 90
+private const val ModeSwapInMillis = 210
+private const val ModeSwapScale = 0.92f
+
+private val IdleArrivalState: State<Float> = mutableStateOf(1f)
+
+private val ItemFadeSpec = spring<Float>(stiffness = Spring.StiffnessMediumLow)
+private val ItemPlacementSpec = spring(
+    stiffness = Spring.StiffnessMedium,
+    dampingRatio = Spring.DampingRatioNoBouncy,
+    visibilityThreshold = IntOffset.VisibilityThreshold,
+)
+
+/**
+ * The arrival animation for [entryId], or a flat `1f` for every entry that has
+ * been there all along — so existing items allocate no [Animatable] or
+ * [LaunchedEffect] when scrolling or switching between grid and list modes.
+ */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun rememberEntryArrival(entryId: String, pop: ShelfPopState): State<Float> {
+    val justCreated = pop.entryId == entryId
+    val animating = remember(entryId) { mutableStateOf(justCreated) }
+    if (justCreated && !animating.value) {
+        animating.value = true
+    }
+    if (!animating.value) return IdleArrivalState
+
+    val spec = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
+    val arrival = remember(entryId) { Animatable(0f) }
+
+    LaunchedEffect(justCreated) {
+        if (justCreated) {
+            // The tile can compose a frame before the new id reaches us — the
+            // shelf flow and the callback are separate trips to the main
+            // thread — so start from scratch rather than trust the initial.
+            arrival.snapTo(0f)
+            arrival.animateTo(1f, spec)
+            pop.entryId = null
+        } else if (arrival.value != 1f) {
+            // A second folder created mid-animation cancels this effect. Never
+            // leave a tile stranded at two-thirds size.
+            arrival.animateTo(1f, spec)
+        }
+        animating.value = false
+    }
+    return arrival.asState()
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+fun LibraryScreen(
+    viewModel: LibraryViewModel = viewModel(factory = LibraryViewModel.Factory),
+    // Clearance for the navigation bar. Taken as CONTENT padding, not as a
+    // margin: the grid's background still runs to the bottom of the screen and
+    // its items scroll under the bar, which is the point of having one.
+    contentPadding: PaddingValues = PaddingValues(),
+    onOpenBook: (Book) -> Unit = {},
+    onOpenSettings: () -> Unit = {},
+    onEditBook: (Book) -> Unit = {},
+    onBookInfo: (Book) -> Unit = {},
+    /** Shared navigation and add button visibility, including library overlays. */
+    onDockVisible: (Boolean) -> Unit = {},
+    onTabSwipeEnabled: (Boolean) -> Unit = {},
+    dockScrollEnabled: Boolean = true,
+) {
+    val entries by viewModel.entries.collectAsStateWithLifecycle()
+    val books by viewModel.books.collectAsStateWithLifecycle()
+    val readingQueue by viewModel.readingQueue.collectAsStateWithLifecycle()
+    val viewMode by viewModel.viewMode.collectAsStateWithLifecycle()
+    val query by viewModel.query.collectAsStateWithLifecycle()
+
+    val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
+    val haptics = LocalHapticFeedback.current
+    val resources = LocalResources.current
+    val density = LocalDensity.current
+
+    var openShelfId by rememberSaveable { mutableStateOf<String?>(null) }
+    var browseSort by rememberSaveable { mutableStateOf(LibraryBrowseSort.LIBRARY) }
+    var statusFilter by rememberSaveable { mutableStateOf(LibraryStatusFilter.ALL) }
+    var formatFilter by rememberSaveable { mutableStateOf<BookFormat?>(null) }
+    // The panel opens with the cursor already in the name field when the folder
+    // was just made, or when the menu's Rename asked for it.
+    var renameOnOpen by remember { mutableStateOf(false) }
+
+    // Long-press machinery: which item's menu is showing, and which sheet the
+    // menu opened after it.
+    val tileBounds = remember { LibraryTileBounds() }
+    val pop = remember { ShelfPopState() }
+    val selection = remember { LibrarySelection() }
+    var menuRequest by remember { mutableStateOf<MenuRequest?>(null) }
+    var addToShelfFor by remember { mutableStateOf<AddToShelfRequest?>(null) }
+    var shelfToDelete by remember { mutableStateOf<String?>(null) }
+    var pendingRemoval by remember { mutableStateOf<PendingRemoval?>(null) }
+    var addBooksToShelf by remember { mutableStateOf<String?>(null) }
+
+    val searching = query.isNotBlank()
+
+    // Back peels one layer at a time: the selection first, then the folder.
+    BackHandler(enabled = selection.active) { selection.clear() }
+    BackHandler(enabled = !selection.active && openShelfId != null) { openShelfId = null }
+
+    // The hero is still "the last book you opened". It keeps that spot even
+    // when it lives inside a shelf — only a LOOSE copy is hidden from the grid.
+    val heroBook = remember(books) {
+        books.firstOrNull { it.lastOpenedAtMillis != null } ?: books.firstOrNull()
+    }
+    val filtering = statusFilter != LibraryStatusFilter.ALL || formatFilter != null
+    val showHero = !searching && !filtering && browseSort == LibraryBrowseSort.LIBRARY
+    val visibleEntries = remember(entries, books, query, heroBook, browseSort, statusFilter, formatFilter) {
+        val filtered = if (filtering) filterLibraryBooks(books, query, statusFilter, formatFilter)
+            else filterEntries(entries, books, query)
+        val withoutHero = if (showHero) {
+            filtered.filterNot { it is LibraryEntry.BookEntry && it.book.id == heroBook?.id }
+        } else filtered
+        sortLibraryEntries(withoutHero, browseSort)
+    }
+
+    // What the panel is drawing. It deliberately outlives `openShelfId`: the
+    // panel has to stay mounted while it folds back into its tile, and it has
+    // to keep its last contents when the shelf itself dissolves underneath it
+    // (pull the second-to-last book out and there is no shelf left to read).
+    var mountedShelf by remember { mutableStateOf<LibraryEntry.ShelfEntry?>(null) }
+    LaunchedEffect(entries, openShelfId) {
+        val id = openShelfId ?: return@LaunchedEffect
+        val match = entries.filterIsInstance<LibraryEntry.ShelfEntry>()
+            .firstOrNull { it.shelf.id == id }
+        if (match != null) {
+            mountedShelf = match
+        } else {
+            // The shelf is gone — dissolved down to one book, or restored from
+            // a saved state that outlived it. Close, don't sit there holding an
+            // id that nothing can open (and that Back would keep swallowing).
+            openShelfId = null
+        }
+    }
+    // Opening seeds it from the click instead of waiting for that effect, so
+    // the panel is there on the very frame the folder is tapped.
+    val onOpenShelf: (LibraryEntry.ShelfEntry) -> Unit = { entry ->
+        mountedShelf = entry
+        openShelfId = entry.shelf.id
+    }
+
+    // A shelf the view model wants opened: made by the FAB, or made just now to
+    // hold the books the user picked "add to a new shelf" for. Either way it
+    // arrives unnamed, so it opens with the name field ready.
+    val openShelfRequest by viewModel.openShelfRequest.collectAsStateWithLifecycle()
+    LaunchedEffect(openShelfRequest, entries) {
+        val id = openShelfRequest ?: return@LaunchedEffect
+        val match = entries.filterIsInstance<LibraryEntry.ShelfEntry>()
+            .firstOrNull { it.shelf.id == id }
+            // The id lands a beat before the shelves flow catches up. Wait for
+            // the entry rather than opening a panel with nothing behind it.
+            ?: return@LaunchedEffect
+        selection.clear()
+        pop.entryId = id
+        renameOnOpen = true
+        onOpenShelf(match)
+        viewModel.consumeOpenShelfRequest()
+    }
+
+    val dockAvailable = openShelfId == null && !selection.active && addBooksToShelf == null
+    val reportDock by rememberUpdatedState(onDockVisible)
+    val reportTabSwipe by rememberUpdatedState(onTabSwipeEnabled)
+    val observeDockScroll by rememberUpdatedState(dockScrollEnabled && dockAvailable)
+    val gridState = rememberLazyGridState()
+    val dockScroll = remember(density) {
+        LibraryDockScrollState(
+            hideThreshold = with(density) { 20.dp.toPx() },
+            showThreshold = with(density) { 12.dp.toPx() },
+        )
+    }
+    val dockScrollConnection = remember(dockScroll) {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                // Observe the gesture BEFORE the grid consumes it: short lists
+                // and either end of a long list still produce these deltas.
+                // Fling/overscroll settling cannot reverse the user's intent.
+                if (observeDockScroll && source == NestedScrollSource.UserInput &&
+                    kotlin.math.abs(available.y) > kotlin.math.abs(available.x)
+                ) {
+                    reportDock(dockScroll.onDrag(available.y))
+                }
+                return Offset.Zero
+            }
+
+            override suspend fun onPreFling(available: Velocity): Velocity {
+                dockScroll.endGesture()
+                return Velocity.Zero
+            }
+        }
+    }
+    LaunchedEffect(dockAvailable, dockScrollEnabled, dockScroll) {
+        dockScroll.reset()
+        reportDock(dockAvailable)
+        reportTabSwipe(dockAvailable)
+    }
+    DisposableEffect(Unit) {
+        onDispose {
+            reportDock(true)
+            reportTabSwipe(true)
+        }
+    }
+
+    // Ticks whose entries have been deleted out from under them. Books INSIDE a
+    // shelf count as still there: they are not top-level entries, and dropping
+    // them would wipe a selection made in an open folder on its first frame.
+    LaunchedEffect(entries) {
+        if (!selection.active) return@LaunchedEffect
+        val alive = HashSet<String>()
+        entries.forEach { entry ->
+            alive += entry.id
+            if (entry is LibraryEntry.ShelfEntry) {
+                entry.books.forEach { alive += bookOrderKey(it.id) }
+            }
+        }
+        selection.retain(alive)
+    }
+
+    LaunchedEffect(resources) {
+        viewModel.messages.collect { message ->
+            when (message) {
+                is LibraryMessage.ReadingQueueAdded -> {
+                    haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                    snackbarHostState.showSnackbar(
+                        resources.getString(
+                            if (message.alreadyQueued) R.string.library_reading_queue_already_added
+                            else R.string.library_reading_queue_added,
+                            message.title,
+                        ),
+                    )
+                }
+
+                is LibraryMessage.ReadingQueueRemoved -> {
+                    haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                    snackbarHostState.showSnackbar(
+                        resources.getString(R.string.reading_queue_deleted, message.title),
+                    )
+                }
+
+                LibraryMessage.ReadingQueueFailed -> {
+                    haptics.performHapticFeedback(HapticFeedbackType.Reject)
+                    snackbarHostState.showSnackbar(resources.getString(R.string.reading_queue_save_failed))
+                }
+
+                is LibraryMessage.Imported -> {
+                    haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                    snackbarHostState.showSnackbar(
+                        resources.getString(R.string.library_imported, message.title),
+                    )
+                }
+
+                is LibraryMessage.Replaced -> {
+                    haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                    snackbarHostState.showSnackbar(
+                        resources.getString(R.string.library_replaced, message.title),
+                    )
+                }
+
+                is LibraryMessage.ImportedMany -> {
+                    haptics.performHapticFeedback(
+                        if (message.failed > 0) HapticFeedbackType.Reject else HapticFeedbackType.Confirm,
+                    )
+                    snackbarHostState.showSnackbar(
+                        if (message.failed > 0) {
+                            resources.getQuantityString(R.plurals.library_imported_many_partial, message.added, message.added, message.failed)
+                        } else {
+                            resources.getQuantityString(R.plurals.library_imported_many, message.added, message.added)
+                        },
+                    )
+                }
+
+                LibraryMessage.ImportCancelled -> {
+                    snackbarHostState.showSnackbar(
+                        resources.getString(R.string.library_import_cancelled),
+                    )
+                }
+
+                LibraryMessage.ImportFailed -> {
+                    haptics.performHapticFeedback(HapticFeedbackType.Reject)
+                    snackbarHostState.showSnackbar(
+                        resources.getString(R.string.library_import_failed),
+                    )
+                }
+
+                LibraryMessage.ImportFailedDrm -> {
+                    haptics.performHapticFeedback(HapticFeedbackType.Reject)
+                    snackbarHostState.showSnackbar(
+                        resources.getString(R.string.library_import_failed_drm),
+                    )
+                }
+            }
+        }
+    }
+
+    // A book added from outside the app: hand its id to the grid so the tile
+    // grows into place, and clear it so a rotation does not replay the arrival.
+    val arrived by viewModel.arrived.collectAsStateWithLifecycle()
+    LaunchedEffect(arrived) {
+        val id = arrived ?: return@LaunchedEffect
+        pop.entryId = id
+        viewModel.consumeArrival()
+    }
+
+    // shape. Done in one frame it reads as a stutter, so fade the entries out,
+    // relayout while they are invisible, and fade them back — the Material
+    // fade-through. `renderMode` is what is actually on screen; `viewMode` is
+    // what was asked for.
+    var renderMode by remember { mutableStateOf(viewMode) }
+    var swapSettling by remember { mutableStateOf(false) }
+    // Only a tap on the toggle earns a transition. The persisted mode arrives
+    // from DataStore a beat after the first frame, and animating that would
+    // make every cold start look like the app changed its mind.
+    var userChoseMode by remember { mutableStateOf(false) }
+    val swapping = swapSettling
+    val swap = remember { Animatable(1f) }
+    LaunchedEffect(viewMode) {
+        if (viewMode != renderMode) {
+            if (userChoseMode) {
+                swap.animateTo(0f, tween(ModeSwapOutMillis, easing = FastOutLinearInEasing))
+            }
+            swapSettling = true
+            renderMode = viewMode
+        }
+        // Never skip this tail, even when the modes already match. Toggling
+        // back mid-fade cancels and restarts this effect with viewMode already
+        // equal to renderMode, and an early return there would strand the grid
+        // at whatever alpha it had reached — permanently half-invisible.
+        if (swap.value < 1f) {
+            swap.animateTo(1f, tween(ModeSwapInMillis, easing = LinearOutSlowInEasing))
+        }
+        swapSettling = false
+    }
+    // Content types for the grid, so LazyGrid can reuse a book tile for another
+    // book instead of composing it from scratch. Hoisted rather than built per
+    // item: the lambda below runs during measurement, on every item.
+    val bookType = remember(renderMode) { "${renderMode.name}:book" }
+    val shelfType = remember(renderMode) { "${renderMode.name}:shelf" }
+
+    val swapProgress = swap.asState()
+    // Hoisted so the lambda instance is stable, and read only from inside
+    // graphicsLayer: the fade runs in the draw phase and recomposes nothing.
+    val modeFade = remember(swapProgress) {
+        Modifier.graphicsLayer {
+            val progress = swapProgress.value
+            alpha = progress
+            scaleX = lerp(ModeSwapScale, 1f, progress)
+            scaleY = scaleX
+        }
+    }
+
+    // The GRID's own selection run, not any run at all: books ticked inside an
+    // open folder must not put checkmarks on the tiles behind it, and a tap out
+    // there must still open what it hits.
+    val gridSelecting = selection.scope == SelectionScope.Grid
+
+    // A tap either opens the thing or ticks it — never both, or a selection run
+    // would keep dropping the user into the reader.
+    val onEntryClick: (LibraryEntry) -> Unit = { entry ->
+        if (gridSelecting) {
+            selection.toggle(entry.id)
+        } else {
+            when (entry) {
+                is LibraryEntry.BookEntry -> onOpenBook(entry.book)
+                is LibraryEntry.ShelfEntry -> onOpenShelf(entry)
+            }
+        }
+    }
+    val onEntryLongPress: (LibraryEntry) -> Unit = { entry ->
+        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+        if (gridSelecting) {
+            selection.toggle(entry.id)
+        } else {
+            val target = when (entry) {
+                is LibraryEntry.BookEntry ->
+                    MenuTarget.BookTarget(entry.book.id, entry.id, shelfId = entries
+                        .filterIsInstance<LibraryEntry.ShelfEntry>()
+                        .firstOrNull { shelf -> shelf.books.any { it.id == entry.book.id } }?.shelf?.id)
+
+                is LibraryEntry.ShelfEntry ->
+                    MenuTarget.ShelfTarget(entry.shelf.id, entry.id)
+            }
+            // The tile already registers its rect for the folder animation, so
+            // the menu can hang off the item without the gesture reporting a
+            // finger position.
+            menuRequest = MenuRequest(target, tileBounds[entry.id] ?: Rect.Zero)
+        }
+    }
+
+    // `combinedClickable` has no timeout parameter — it reads one from the
+    // ambient ViewConfiguration. The platform's 500ms is tuned for text
+    // selection; on a grid of covers, where the menu is the point of holding
+    // one, it feels like the app is thinking. Delegation keeps every other
+    // member (touch slop, fling velocity, double-tap window) at its real value.
+    val platformViewConfiguration = LocalViewConfiguration.current
+    val quickLongPress = remember(platformViewConfiguration) {
+        object : ViewConfiguration by platformViewConfiguration {
+            override val longPressTimeoutMillis: Long = MenuHoldMillis
+        }
+    }
+
+    CompositionLocalProvider(LocalViewConfiguration provides quickLongPress) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.surface)
+                .onGloballyPositioned { tileBounds.rootOrigin = it.positionInRoot() },
+        ) {
+            LazyVerticalGrid(
+                state = gridState,
+                // One column in list mode, rather than giving every entry a
+                // full-line span: an ITEM whose span changes under an unchanged
+                // key makes LazyGrid place the same node twice ("Place was
+                // called on a node which was placed already"). Changing the
+                // column count keeps every entry at span 1 in both modes, which
+                // is what lets the keys below stay stable.
+                columns = GridCells.Fixed(if (renderMode == LibraryViewMode.GRID) 3 else 1),
+                modifier = Modifier.fillMaxSize().nestedScroll(dockScrollConnection),
+                contentPadding = PaddingValues(
+                    start = SidePadding,
+                    end = SidePadding,
+                    bottom = BottomInset + contentPadding.calculateBottomPadding(),
+                ),
+                horizontalArrangement = Arrangement.spacedBy(GridGap),
+                verticalArrangement = Arrangement.spacedBy(ListGap),
+            ) {
+                item(span = { GridItemSpan(maxLineSpan) }, key = "library_header") {
+                    LibraryHeader(
+                        query = query,
+                        onQueryChange = viewModel::setQuery,
+                        onOpenSettings = onOpenSettings,
+                        heroBook = if (showHero) heroBook else null,
+                        heroCover = heroBook?.let { viewModel.coverFileFor(it) },
+                        onOpenBook = onOpenBook,
+                        onHeroDetails = { heroBook?.let(onBookInfo) },
+                        onHeroEdit = { heroBook?.let(onEditBook) },
+                        // Through the same sheet as every other delete, so there is
+                        // one "remove a book" object in the app rather than two.
+                        onHeroDelete = {
+                            heroBook?.let { pendingRemoval = PendingRemoval(listOf(it.id)) }
+                        },
+                        // The header is full-bleed; undo the grid's side padding.
+                        modifier = Modifier.bleedHorizontally(SidePadding),
+                    )
+                }
+
+                // `entries`, not `books`: an empty shelf is the only thing in the
+                // library right after the FAB makes one, and the empty state would
+                // otherwise hide it.
+                if (entries.isNotEmpty()) {
+                    item(span = { GridItemSpan(maxLineSpan) }, key = "library_section") {
+                        SectionRow(
+                            // `viewMode`, not `renderMode`: the segment lights
+                            // up under the finger while the grid is still
+                            // fading out behind it. That is most of what makes
+                            // the toggle feel instant.
+                            viewMode = viewMode,
+                            onViewMode = { mode ->
+                                userChoseMode = true
+                                haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                                viewModel.setViewMode(mode)
+                            },
+                            // The row doubles as the selection bar rather than a
+                            // top app bar sliding in: the library's header is item
+                            // one of this grid and scrolls away, so there is no bar
+                            // to take over.
+                            selection = selection.takeIf { it.scope == SelectionScope.Grid },
+                            onSelectAll = { selection.selectAll(visibleEntries.map { it.id }) },
+                            onClearSelection = { selection.clear() },
+                            onClearLibrary = {
+                                pendingRemoval = PendingRemoval(
+                                    bookIds = books.map { it.id },
+                                    shelfIds = entries.filterIsInstance<LibraryEntry.ShelfEntry>().map { it.shelf.id },
+                                    isClearLibrary = true,
+                                )
+                            },
+                            showClearLibrary = !searching && !filtering,
+                            modifier = Modifier.padding(top = 6.dp, bottom = 6.dp),
+                        )
+                    }
+                }
+
+                if (entries.isNotEmpty() && !selection.active) {
+                    item(span = { GridItemSpan(maxLineSpan) }, key = "library_sort") {
+                        LibraryBrowseControls(
+                            sort = browseSort,
+                            format = formatFilter,
+                            status = statusFilter,
+                            onSortChange = { browseSort = it },
+                            onFormatChange = { formatFilter = it },
+                            onStatusChange = { statusFilter = it },
+                        )
+                    }
+                }
+
+                if (entries.isEmpty()) {
+                    item(span = { GridItemSpan(maxLineSpan) }, key = "library_empty") {
+                        EmptyLibrary(Modifier.padding(top = 64.dp))
+                    }
+                } else if (visibleEntries.isEmpty() && (searching || filtering)) {
+                    item(span = { GridItemSpan(maxLineSpan) }, key = "library_no_results") {
+                        if (searching) NoSearchResults(Modifier.padding(top = 48.dp)) { viewModel.setQuery("") }
+                        else Text(stringResource(R.string.library_filter_empty), Modifier.padding(top = 48.dp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                } else {
+                    items(
+                        items = visibleEntries,
+                        // The entry id alone, so a mode swap KEEPS every item
+                        // slot: the cover's image node survives, its remembers
+                        // survive, and the grid keeps its scroll anchor. Safe
+                        // because entry items never declare a span — only the
+                        // column count changes, exactly as the full-span header
+                        // above has always done.
+                        key = { it.id },
+                        contentType = { entry ->
+                            if (entry is LibraryEntry.ShelfEntry) shelfType else bookType
+                        },
+                    ) { entry ->
+                        val itemModifier = Modifier
+                            .animateItem(
+                                fadeInSpec = if (swapping) null else ItemFadeSpec,
+                                fadeOutSpec = if (swapping) null else ItemFadeSpec,
+                                // Snappy and NOT bouncy. The old low-stiffness
+                                // bouncy spring overshot and took ~500ms to
+                                // settle, so displaced tiles stayed under the
+                                // finger long enough to fight the reorder.
+                                //
+                                // Suppressed outright across a mode swap: every
+                                // item now keeps its slot, so every one of them
+                                // would otherwise fly from its grid position to
+                                // its row position while fading in. The
+                                // cross-fade carries that motion instead.
+                                placementSpec = if (swapping) null else ItemPlacementSpec,
+                            )
+                            .tileBounds(entry.id, tileBounds)
+                            // AFTER tileBounds, so its onGloballyPositioned sits
+                            // outside this layer: a rect measured through a scaled
+                            // layer is the wrong place to unfold a folder from.
+                            .then(modeFade)
+
+                        val ticked = gridSelecting && entry.id in selection
+                        val click = { onEntryClick(entry) }
+                        val longPress = { onEntryLongPress(entry) }
+
+                        when (entry) {
+                            is LibraryEntry.BookEntry -> if (renderMode == LibraryViewMode.GRID) {
+                                BookGridTile(
+                                    book = entry.book,
+                                    coverFile = viewModel.coverFileFor(entry.book),
+                                    pop = pop,
+                                    selecting = gridSelecting,
+                                    selected = ticked,
+                                    onClick = click,
+                                    onLongClick = longPress,
+                                    modifier = itemModifier.padding(top = 6.dp),
+                                )
+                            } else {
+                                BookListRow(
+                                    book = entry.book,
+                                    coverFile = viewModel.coverFileFor(entry.book),
+                                    pop = pop,
+                                    selecting = gridSelecting,
+                                    selected = ticked,
+                                    onClick = click,
+                                    onLongClick = longPress,
+                                    modifier = itemModifier,
+                                )
+                            }
+
+                            is LibraryEntry.ShelfEntry -> if (renderMode == LibraryViewMode.GRID) {
+                                ShelfGridTile(
+                                    entry = entry,
+                                    coverOf = viewModel::coverFileFor,
+                                    pop = pop,
+                                    selecting = gridSelecting,
+                                    selected = ticked,
+                                    onClick = click,
+                                    onLongClick = longPress,
+                                    modifier = itemModifier.padding(top = 6.dp),
+                                )
+                            } else {
+                                ShelfListRow(
+                                    entry = entry,
+                                    coverOf = viewModel::coverFileFor,
+                                    pop = pop,
+                                    selecting = gridSelecting,
+                                    selected = ticked,
+                                    onClick = click,
+                                    onLongClick = longPress,
+                                    onAddBooks = { addBooksToShelf = entry.shelf.id },
+                                    modifier = itemModifier,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            GoatSnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    // The bar's height already carries the system inset.
+                    .padding(bottom = contentPadding.calculateBottomPadding() + 16.dp),
+            )
+
+            mountedShelf?.let { shelfEntry ->
+                ShelfPanel(
+                    entry = shelfEntry,
+                    expanded = openShelfId == shelfEntry.shelf.id,
+                    coverOf = viewModel::coverFileFor,
+                    tileBounds = tileBounds,
+                    selection = selection,
+                    renameOnOpen = renameOnOpen,
+                    onRename = { newName -> viewModel.renameShelf(shelfEntry.shelf.id, newName) },
+                    onRenameHandled = { renameOnOpen = false },
+                    onOpenBook = onOpenBook,
+                    onLongPressBook = { book, anchor ->
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        menuRequest = MenuRequest(
+                            target = MenuTarget.BookTarget(
+                                bookId = book.id,
+                                entryId = bookOrderKey(book.id),
+                                shelfId = shelfEntry.shelf.id,
+                            ),
+                            anchor = anchor,
+                        )
+                    },
+                    onShelfMenu = { anchor ->
+                        menuRequest = MenuRequest(
+                            MenuTarget.ShelfTarget(shelfEntry.shelf.id, shelfEntry.id),
+                            anchor,
+                        )
+                    },
+                    onAddBooks = { addBooksToShelf = shelfEntry.shelf.id },
+                    onRemoveSelected = {
+                        viewModel.removeFromShelf(shelfEntry.shelf.id, selection.selectedBookIds())
+                        selection.clear()
+                    },
+                    onDeleteSelected = {
+                        pendingRemoval = PendingRemoval(selection.selectedBookIds())
+                    },
+                    onDismiss = {
+                        // A selection made inside the folder has nowhere to be
+                        // acted on once the folder is gone.
+                        if (selection.scope is SelectionScope.Shelf) selection.clear()
+                        openShelfId = null
+                    },
+                    // Unmount only once it has finished folding away — and only if
+                    // nothing reopened it in the meantime.
+                    onClosed = { if (openShelfId == null) mountedShelf = null },
+                )
+            }
+
+            // Above the panel, below the sheets: acting on a selection made inside
+            // an open folder still has to be reachable.
+            if (selection.scope == SelectionScope.Grid) {
+                SelectionActionBar(
+                    canAddToShelf = selection.selectedBookIds().isNotEmpty(),
+                    onAddToShelf = {
+                        addToShelfFor = AddToShelfRequest(selection.selectedBookIds())
+                    },
+                    onDelete = {
+                        // A folder in the selection is DISSOLVED, not emptied: the
+                        // books it held stay. Wiping a folder's books needs the
+                        // folder's own menu, where the two options are spelled out.
+                        pendingRemoval = PendingRemoval(
+                            bookIds = selection.selectedBookIds(),
+                            shelfIds = selection.selectedShelfIds(),
+                        )
+                    },
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = contentPadding.calculateBottomPadding() + 16.dp),
+                )
+            }
+
+            // The long-press menu, inside this Box so it can be laid over the item
+            // it belongs to. The Box draws nothing and takes the item's exact rect;
+            // the DropdownMenu inside anchors to it and flips above near the bottom
+            // of the screen, which is what makes it read as belonging to the cover.
+            menuRequest?.let { request ->
+                val target = request.target
+                val anchor = request.anchor
+                val bookOf = { id: String -> books.firstOrNull { it.id == id } }
+
+                Box(
+                    modifier = Modifier
+                        .offset {
+                            val local = anchor.topLeft - tileBounds.rootOrigin
+                            IntOffset(local.x.roundToInt(), local.y.roundToInt())
+                        }
+                        .size(
+                            width = with(density) { anchor.width.toDp() },
+                            height = with(density) { anchor.height.toDp() },
+                        ),
+                ) {
+                    LibraryItemMenu(
+                        target = target,
+                        isInReadingQueue = target is MenuTarget.BookTarget &&
+                            readingQueue.any { it.attachment?.id == target.bookId },
+                        canEdit = (target as? MenuTarget.BookTarget)?.bookId?.let(bookOf)?.format?.supportsMetadataEditing == true,
+                        onSelect = {
+                            val scope = when (target) {
+                                is MenuTarget.BookTarget -> target.shelfId
+                                    ?.takeIf { it == openShelfId }
+                                    ?.let { SelectionScope.Shelf(it) } ?: SelectionScope.Grid
+
+                                is MenuTarget.ShelfTarget -> SelectionScope.Grid
+                            }
+                            selection.start(scope, target.entryId)
+                            menuRequest = null
+                        },
+                        onAddToShelf = {
+                            val book = target as? MenuTarget.BookTarget
+                            if (book != null) {
+                                addToShelfFor = AddToShelfRequest(listOf(book.bookId), book.shelfId)
+                            }
+                            menuRequest = null
+                        },
+                        onAddToReadingQueue = {
+                            (target as? MenuTarget.BookTarget)?.bookId?.let(viewModel::addToReadingQueue)
+                            menuRequest = null
+                        },
+                        onRemoveFromReadingQueue = {
+                            (target as? MenuTarget.BookTarget)?.bookId?.let(viewModel::removeFromReadingQueue)
+                            menuRequest = null
+                        },
+                        onAddBooks = {
+                            addBooksToShelf = (target as? MenuTarget.ShelfTarget)?.shelfId
+                            menuRequest = null
+                        },
+                        onRemoveFromShelf = {
+                            val book = target as? MenuTarget.BookTarget
+                            if (book?.shelfId != null) {
+                                viewModel.removeFromShelf(book.shelfId, listOf(book.bookId))
+                            }
+                            menuRequest = null
+                        },
+                        onEdit = {
+                            (target as? MenuTarget.BookTarget)?.bookId?.let(bookOf)?.let(onEditBook)
+                            menuRequest = null
+                        },
+                        onInfo = {
+                            (target as? MenuTarget.BookTarget)?.bookId?.let(bookOf)?.let(onBookInfo)
+                            menuRequest = null
+                        },
+                        onRename = {
+                            val shelf = target as? MenuTarget.ShelfTarget
+                            if (shelf != null) {
+                                entries.filterIsInstance<LibraryEntry.ShelfEntry>()
+                                    .firstOrNull { it.shelf.id == shelf.shelfId }
+                                    ?.let {
+                                        renameOnOpen = true
+                                        onOpenShelf(it)
+                                    }
+                            }
+                            menuRequest = null
+                        },
+                        onDelete = {
+                            when (target) {
+                                is MenuTarget.BookTarget ->
+                                    pendingRemoval = PendingRemoval(listOf(target.bookId))
+
+                                is MenuTarget.ShelfTarget -> shelfToDelete = target.shelfId
+                            }
+                            menuRequest = null
+                        },
+                        onDismiss = { menuRequest = null },
+                    )
+                }
+            }
+        }
+    }
+
+    addToShelfFor?.let { request ->
+        AddToShelfSheet(
+            shelves = entries.filterIsInstance<LibraryEntry.ShelfEntry>(),
+            exceptShelfId = request.fromShelfId,
+            onNewShelf = {
+                // The shelf is only addressable once the write lands, so the
+                // view model reports its id back and the screen opens it there.
+                viewModel.createShelf(request.bookIds)
+                selection.clear()
+                addToShelfFor = null
+            },
+            onPick = { shelfId ->
+                haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                viewModel.addToShelf(shelfId, request.bookIds)
+                selection.clear()
+                addToShelfFor = null
+            },
+            onDismiss = { addToShelfFor = null },
+        )
+    }
+
+    shelfToDelete?.let { shelfId ->
+        DeleteShelfSheet(
+            onRemoveShelf = {
+                viewModel.deleteShelf(shelfId)
+                if (openShelfId == shelfId) openShelfId = null
+                selection.clear()
+                shelfToDelete = null
+            },
+            onDeleteBooks = {
+                haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                viewModel.deleteShelfWithBooks(shelfId)
+                if (openShelfId == shelfId) openShelfId = null
+                selection.clear()
+                shelfToDelete = null
+            },
+            onDismiss = { shelfToDelete = null },
+        )
+    }
+
+    addBooksToShelf?.let { shelfId ->
+        val target = entries.filterIsInstance<LibraryEntry.ShelfEntry>()
+            .firstOrNull { it.shelf.id == shelfId }
+        // Which shelf each book is on, already resolved to a display name: the
+        // row that renders it is not a composable and cannot look one up.
+        val unnamed = stringResource(R.string.shelf_unnamed)
+        val shelfOf = remember(entries, unnamed) {
+            entries.filterIsInstance<LibraryEntry.ShelfEntry>()
+                .flatMap { entry ->
+                    val label = entry.shelf.name.ifBlank { unnamed }
+                    entry.books.map { it.id to (entry.shelf.id to label) }
+                }
+                .toMap()
+        }
+        AddBooksToShelfScreen(
+            shelfName = target?.let { shelfName(it) }.orEmpty(),
+            candidates = remember(books, shelfOf, shelfId) {
+                books.filterNot { shelfOf[it.id]?.first == shelfId }
+            },
+            shelfNameOf = { book -> shelfOf[book.id]?.second },
+            coverOf = viewModel::coverFileFor,
+            onConfirm = { bookIds ->
+                haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                viewModel.addToShelf(shelfId, bookIds)
+                addBooksToShelf = null
+            },
+            onDismiss = { addBooksToShelf = null },
+        )
+    }
+
+    pendingRemoval?.let { removal ->
+        val onlyBook = removal.bookIds.singleOrNull()
+            ?.takeIf { removal.isSingleBook }
+            ?.let { id -> books.firstOrNull { it.id == id } }
+        ConfirmRemoveSheet(
+            title = if (removal.isClearLibrary) {
+                stringResource(R.string.library_clear_title)
+            } else if (onlyBook != null) {
+                stringResource(R.string.library_delete_title)
+            } else {
+                stringResource(R.string.library_selection_delete_title)
+            },
+            // One book gets named. A pile of them gets counted.
+            message = onlyBook
+                ?.let { stringResource(R.string.library_delete_message, it.title) }
+                ?: removal.describe(),
+            hasBooks = removal.bookIds.isNotEmpty(),
+            onRemoveFromLibrary = {
+                haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                viewModel.removeBooksFromLibrary(removal.bookIds)
+                removal.shelfIds.forEach { viewModel.deleteShelf(it) }
+                selection.clear()
+                pendingRemoval = null
+            },
+            onDeleteFiles = {
+                haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                viewModel.deleteBooks(removal.bookIds)
+                removal.shelfIds.forEach { viewModel.deleteShelf(it) }
+                selection.clear()
+                pendingRemoval = null
+            },
+            onDismiss = { pendingRemoval = null },
+        )
+    }
+
+    // The duplicate dialog and the import preview are hosted by MainActivity,
+    // not here: a book opened from another app can arrive while the reader is
+    // on screen, and this composable would not be there to ask.
+}
+
+/**
+ * Case-insensitive match over shelf names and, for books, whatever [searchRank]
+ * looks at — title and author first, then series and description.
+ *
+ * Shelves and the books that answered best come first; the books found only by
+ * their blurb follow, so a description match can never bury a title match.
+ * Within each of those two groups the library's own order is kept.
+ */
+internal fun filterEntries(
+    entries: List<LibraryEntry>,
+    allBooks: List<Book>,
+    query: String,
+): List<LibraryEntry> {
+    val needle = query.trim()
+    if (needle.isEmpty()) return entries
+
+    val shelves = entries.filterIsInstance<LibraryEntry.ShelfEntry>()
+        .filter { it.shelf.name.contains(needle, ignoreCase = true) }
+    val alreadyShown = shelves.flatMapTo(HashSet()) { shelf -> shelf.books.map { it.id } }
+    // Search reaches INTO shelves: a book you can't find is worse than a book
+    // shown outside its shelf for the duration of a query.
+    val ranked = allBooks
+        .filter { it.id !in alreadyShown }
+        .mapNotNull { book -> searchRank(book, needle)?.let { book to it } }
+
+    // A shelf name is as direct a hit as a title, so shelves sit with the top
+    // group and are ordered against it by the usual timestamp.
+    val byTime = compareByDescending<LibraryEntry> { it.sortTs }.thenBy { it.id }
+    val direct = (shelves + ranked.filter { it.second <= 1 }.map { LibraryEntry.BookEntry(it.first) })
+        .sortedWith(byTime)
+    val indirect = ranked.filter { it.second > 1 }
+        .sortedBy { it.second }
+        .map { LibraryEntry.BookEntry(it.first) }
+
+    return direct + indirect
+}
+
+// ----------------------------------------------------------------- header
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun LibraryHeader(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    onOpenSettings: () -> Unit,
+    heroBook: Book?,
+    heroCover: java.io.File?,
+    onOpenBook: (Book) -> Unit,
+    onHeroDetails: () -> Unit,
+    onHeroEdit: () -> Unit,
+    onHeroDelete: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val goat = LocalGoatColors.current
+
+    GoatHeaderContent(
+        query = query,
+        onQueryChange = onQueryChange,
+        searchHint = stringResource(R.string.library_search_hint),
+        onOpenSettings = onOpenSettings,
+        modifier = modifier
+            .clip(RoundedCornerShape(bottomStart = 36.dp, bottomEnd = 36.dp))
+            .background(Brush.verticalGradient(listOf(goat.headerTop, goat.headerBottom))),
+    ) {
+        if (heroBook != null) {
+            HeroCard(
+                book = heroBook,
+                coverFile = heroCover,
+                onOpenBook = { onOpenBook(heroBook) },
+                onDetails = onHeroDetails,
+                onEdit = onHeroEdit,
+                onDelete = onHeroDelete,
+            )
+        }
+    }
+}
+
+// -------------------------------------------------------------- hero card
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun HeroCard(
+    book: Book,
+    coverFile: java.io.File?,
+    onOpenBook: () -> Unit,
+    onDetails: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val goat = LocalGoatColors.current
+    val scheme = MaterialTheme.colorScheme
+    var menuOpen by remember { mutableStateOf(false) }
+
+    val fraction = book.libraryProgressFraction
+    val percent = book.libraryReadPercent
+
+    Surface(
+        shape = RoundedCornerShape(GoatHeroCorner),
+        color = scheme.surfaceContainerLowest,
+        shadowElevation = 2.dp,
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier.height(goatHeroHeight()).padding(GoatHeroPadding),
+            horizontalArrangement = Arrangement.spacedBy(GoatHeroPadding),
+        ) {
+            HeroCover(
+                book = book,
+                coverFile = coverFile,
+                onClick = onOpenBook,
+            )
+
+            Column(modifier = Modifier.weight(1f)) {
+                HeroBookHeading(
+                    title = book.title,
+                    author = book.author,
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                )
+
+                Spacer(Modifier.height(8.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(goat.chip),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(fraction)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(scheme.primary),
+                    )
+                }
+
+                // Progress and chapter remainder share the full width below
+                // the bar; the latter can shrink on narrow screens.
+                Spacer(Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Text(
+                        text = buildAnnotatedString {
+                            withStyle(
+                                SpanStyle(
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    letterSpacing = (-0.2).sp,
+                                    color = scheme.primary,
+                                ),
+                            ) { append("$percent%") }
+                            withStyle(SpanStyle(color = scheme.onSurfaceVariant)) {
+                                append(" ")
+                                append(stringResource(R.string.library_read_label))
+                            }
+                        },
+                        fontSize = 12.sp,
+                        // SpanStyle carries no line height — it belongs here.
+                        lineHeight = 16.sp,
+                        maxLines = 1,
+                    )
+                    Text(
+                        text = chapterLine(book),
+                        lineHeight = 16.sp,
+                        color = scheme.onSurfaceVariant,
+                        textAlign = TextAlign.End,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        autoSize = TextAutoSize.StepBased(
+                            minFontSize = 10.sp,
+                            maxFontSize = 12.sp,
+                            stepSize = 0.5.sp,
+                        ),
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+
+                Spacer(Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier.height(40.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    MorphingButton(
+                        onClick = onOpenBook,
+                        color = scheme.primary,
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight(),
+                    ) {
+                        val label = stringResource(when (book.libraryReadingAction) {
+                            LibraryReadingAction.START -> R.string.library_start_reading
+                            LibraryReadingAction.CONTINUE -> R.string.library_continue_reading
+                            LibraryReadingAction.READ_AGAIN -> R.string.library_read_again
+                        })
+                        Text(
+                            text = label.uppercase(),
+                            fontSize = 11.5.sp,
+                            lineHeight = 14.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            letterSpacing = 0.087.em,
+                            color = scheme.onPrimary,
+                            maxLines = 1,
+                            softWrap = false,
+                            textAlign = TextAlign.Center,
+                            autoSize = TextAutoSize.StepBased(
+                                minFontSize = 7.sp,
+                                maxFontSize = 11.5.sp,
+                                stepSize = 0.5.sp,
+                            ),
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp),
+                        )
+                    }
+                    Box {
+                        MorphingButton(
+                            onClick = { menuOpen = true },
+                            color = goat.chip,
+                            modifier = Modifier.size(40.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.MoreVert,
+                                contentDescription = stringResource(R.string.details_menu),
+                                tint = scheme.onSurfaceVariant,
+                                modifier = Modifier.size(19.dp),
+                            )
+                        }
+                        HeroMenu(
+                            expanded = menuOpen,
+                            canEdit = book.format.supportsMetadataEditing,
+                            onDismiss = { menuOpen = false },
+                            onDetails = { menuOpen = false; onDetails() },
+                            onEdit = { menuOpen = false; onEdit() },
+                            onDelete = { menuOpen = false; onDelete() },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HeroCover(
+    book: Book,
+    coverFile: java.io.File?,
+    onClick: () -> Unit,
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val spec = spring<Float>(
+        stiffness = Spring.StiffnessMediumLow,
+        dampingRatio = Spring.DampingRatioMediumBouncy,
+    )
+    val scale by animateFloatAsState(if (pressed) 0.94f else 1f, spec, label = "heroCoverScale")
+    val rotation by animateFloatAsState(if (pressed) -1.5f else 0f, spec, label = "heroCoverTilt")
+    val corner by animateFloatAsState(if (pressed) 30f else 16f, spec, label = "heroCoverCorner")
+
+    Box(
+        modifier = Modifier
+            .size(width = 98.dp, height = GoatHeroContentHeight)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+                rotationZ = rotation
+                shadowElevation = 8.dp.toPx()
+                shape = RoundedCornerShape(corner.dp)
+                clip = true
+            }
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                onClick = onClick,
+            ),
+    ) {
+        BookCover(book = book, coverFile = coverFile, titleSize = 11.sp, padding = 10.dp)
+    }
+}
+
+@Composable
+private fun HeroMenu(
+    expanded: Boolean,
+    canEdit: Boolean,
+    onDismiss: () -> Unit,
+    onDetails: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    DropdownMenu(
+        expanded = expanded,
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(24.dp),
+        containerColor = MaterialTheme.colorScheme.floatingSurface,
+        tonalElevation = 0.dp,
+        modifier = Modifier.width(204.dp),
+    ) {
+        if (canEdit) HeroMenuItem(
+            icon = Icons.Rounded.Edit,
+            label = stringResource(R.string.library_menu_edit),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            textColor = MaterialTheme.colorScheme.onSurface,
+            onClick = onEdit,
+        )
+        HeroMenuItem(
+            icon = Icons.Rounded.Info,
+            label = stringResource(R.string.library_menu_info),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            textColor = MaterialTheme.colorScheme.onSurface,
+            onClick = onDetails,
+        )
+        HorizontalDivider(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            thickness = 1.dp,
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+        )
+        HeroMenuItem(
+            icon = Icons.Rounded.Delete,
+            label = stringResource(R.string.library_delete_confirm),
+            tint = MaterialTheme.colorScheme.error,
+            textColor = MaterialTheme.colorScheme.error,
+            onClick = onDelete,
+        )
+    }
+}
+
+@Composable
+private fun HeroMenuItem(
+    icon: ImageVector,
+    label: String,
+    tint: Color,
+    textColor: Color,
+    onClick: () -> Unit,
+) {
+    DropdownMenuItem(
+        text = {
+            Text(
+                text = label.uppercase(),
+                fontSize = 12.sp,
+                lineHeight = 16.sp,
+                fontWeight = FontWeight.Medium,
+                letterSpacing = 1.sp,
+                color = textColor,
+            )
+        },
+        leadingIcon = {
+            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
+        },
+        onClick = onClick,
+        contentPadding = PaddingValues(horizontal = 18.dp),
+    )
+}
+
+@Composable
+private fun LibraryBrowseControls(
+    sort: LibraryBrowseSort,
+    format: BookFormat?,
+    status: LibraryStatusFilter,
+    onSortChange: (LibraryBrowseSort) -> Unit,
+    onFormatChange: (BookFormat?) -> Unit,
+    onStatusChange: (LibraryStatusFilter) -> Unit,
+) {
+    var open by rememberSaveable { mutableStateOf(false) }
+    val haptics = LocalHapticFeedback.current
+    val activeCount = (if (sort != LibraryBrowseSort.LIBRARY) 1 else 0) +
+        (if (format != null) 1 else 0) + (if (status != LibraryStatusFilter.ALL) 1 else 0)
+    OutlinedButton(onClick = { open = true }, modifier = Modifier.heightIn(min = 48.dp)) {
+        Icon(Icons.Rounded.Tune, contentDescription = null, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(stringResource(R.string.library_browse_controls))
+        if (activeCount > 0) {
+            Spacer(Modifier.width(8.dp))
+            Text(stringResource(R.string.library_browse_active, activeCount), style = MaterialTheme.typography.labelMedium)
+        }
+    }
+    if (open) {
+        AlertDialog(
+            onDismissRequest = { open = false },
+            title = { Text(stringResource(R.string.library_browse_controls)) },
+            text = {
+                Column(Modifier.fillMaxWidth().heightIn(max = 360.dp).verticalScroll(rememberScrollState())) {
+                    LibrarySortControl(sort, onSortChange)
+                    LibraryFormatFilterControl(format, onFormatChange)
+                    LibraryStatusFilterControl(status, onStatusChange)
+                    if (format != null || status != LibraryStatusFilter.ALL) {
+                        Text(stringResource(R.string.library_filter_hint), style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(12.dp))
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { open = false }) { Text(stringResource(R.string.library_browse_done)) } },
+            dismissButton = {
+                if (activeCount > 0) TextButton(onClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                    onSortChange(LibraryBrowseSort.LIBRARY)
+                    onFormatChange(null)
+                    onStatusChange(LibraryStatusFilter.ALL)
+                }) { Text(stringResource(R.string.library_browse_reset)) }
+            },
+        )
+    }
+}
+
+@Composable
+private fun LibrarySortControl(sort: LibraryBrowseSort, onSortChange: (LibraryBrowseSort) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    val haptics = LocalHapticFeedback.current
+    val labels = mapOf(
+        LibraryBrowseSort.LIBRARY to R.string.library_sort_library,
+        LibraryBrowseSort.TITLE to R.string.library_sort_title,
+        LibraryBrowseSort.RECENTLY_ADDED to R.string.library_sort_added,
+    )
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Box {
+            TextButton(onClick = { expanded = true }, modifier = Modifier.height(48.dp)) {
+                Text(stringResource(R.string.library_sort_label, stringResource(labels.getValue(sort))),
+                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                Icon(Icons.Rounded.ExpandMore, contentDescription = null, modifier = Modifier.size(18.dp))
+            }
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                LibraryBrowseSort.entries.forEach { choice ->
+                    DropdownMenuItem(
+                        text = { Text(stringResource(labels.getValue(choice))) },
+                        trailingIcon = { if (choice == sort) Icon(Icons.Rounded.Check, contentDescription = null) },
+                        onClick = {
+                            expanded = false
+                            if (choice != sort) {
+                                haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                                onSortChange(choice)
+                            }
+                        },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LibraryStatusFilterControl(filter: LibraryStatusFilter, onFilterChange: (LibraryStatusFilter) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    val haptics = LocalHapticFeedback.current
+    val labels = mapOf(
+        LibraryStatusFilter.ALL to R.string.library_filter_all,
+        LibraryStatusFilter.UNMARKED to R.string.library_filter_unmarked,
+        LibraryStatusFilter.WANT_TO_READ to R.string.library_filter_want,
+        LibraryStatusFilter.READING to R.string.library_filter_reading,
+        LibraryStatusFilter.FINISHED to R.string.library_filter_finished,
+        LibraryStatusFilter.ABANDONED to R.string.library_filter_abandoned,
+    )
+    Column(Modifier.fillMaxWidth()) {
+        Box {
+            TextButton(onClick = { expanded = true }, modifier = Modifier.height(48.dp)) {
+                Text(stringResource(R.string.library_filter_label, stringResource(labels.getValue(filter))))
+                Icon(Icons.Rounded.ExpandMore, contentDescription = null, modifier = Modifier.size(18.dp))
+            }
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                LibraryStatusFilter.entries.forEach { choice ->
+                    DropdownMenuItem(
+                        text = { Text(stringResource(labels.getValue(choice))) },
+                        trailingIcon = { if (choice == filter) Icon(Icons.Rounded.Check, contentDescription = null) },
+                        onClick = {
+                            expanded = false
+                            if (choice != filter) {
+                                haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                                onFilterChange(choice)
+                            }
+                        },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LibraryFormatFilterControl(format: BookFormat?, onFilterChange: (BookFormat?) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    val haptics = LocalHapticFeedback.current
+    val label = format?.name ?: stringResource(R.string.library_filter_format_all)
+    Box {
+        TextButton(onClick = { expanded = true }, modifier = Modifier.height(48.dp)) {
+            Text(stringResource(R.string.library_filter_format, label),
+                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+            Icon(Icons.Rounded.ExpandMore, contentDescription = null, modifier = Modifier.size(18.dp))
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            (listOf(null) + BookFormat.entries).forEach { choice ->
+                DropdownMenuItem(
+                    text = { Text(choice?.name ?: stringResource(R.string.library_filter_format_all)) },
+                    trailingIcon = { if (choice == format) Icon(Icons.Rounded.Check, contentDescription = null) },
+                    onClick = {
+                        expanded = false
+                        if (choice != format) {
+                            haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                            onFilterChange(choice)
+                        }
+                    },
+                )
+            }
+        }
+    }
+}
+
+// ------------------------------------------------------------ section row
+
+@Composable
+private fun SectionRow(
+    viewMode: LibraryViewMode,
+    onViewMode: (LibraryViewMode) -> Unit,
+    selection: LibrarySelection?,
+    onSelectAll: () -> Unit,
+    onClearSelection: () -> Unit,
+    onClearLibrary: () -> Unit,
+    showClearLibrary: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val scheme = MaterialTheme.colorScheme
+    val selecting = selection != null
+
+    // No top padding here: the caller adds exactly what the grid's own item
+    // spacing does not already cover, so header → section stays at 16dp.
+    //
+    // Fixed height, because this row swaps the view-mode toggle for two chips
+    // when a selection starts and they do not measure the same. Left to itself
+    // the row changed height, and the whole grid below it stepped a few pixels
+    // up the moment anything was ticked.
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(SectionRowHeight),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = if (selection != null) {
+                pluralStringResource(R.plurals.library_selected_count, selection.count, selection.count).uppercase()
+            } else {
+                stringResource(R.string.library_all_books).uppercase()
+            },
+            fontSize = 12.sp,
+            lineHeight = 14.sp,
+            fontWeight = FontWeight.Medium,
+            letterSpacing = 1.2.sp,
+            color = if (selecting) scheme.primary else scheme.onSurface,
+        )
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            if (selecting) {
+                // The view-mode toggle steps aside: relaying out the whole grid
+                // mid-selection is not something anyone reaches for, and the
+                // two controls that matter now need the room.
+                SelectionChip(
+                    label = stringResource(R.string.library_select_all),
+                    onClick = onSelectAll,
+                )
+                SelectionChip(
+                    label = stringResource(R.string.library_clear_selection),
+                    onClick = onClearSelection,
+                )
+            } else {
+                if (showClearLibrary) {
+                    TextButton(
+                        onClick = onClearLibrary,
+                        contentPadding = PaddingValues(horizontal = 8.dp),
+                    ) {
+                        Icon(Icons.Rounded.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text(stringResource(R.string.library_clear_action), fontSize = 11.sp, maxLines = 1)
+                    }
+                }
+                val modes = listOf(LibraryViewMode.GRID, LibraryViewMode.LIST)
+                GoatSegmentedControl(
+                    count = modes.size,
+                    selectedIndex = modes.indexOf(viewMode),
+                    onSelect = { onViewMode(modes[it]) },
+                    containerColor = scheme.surfaceContainerHigh,
+                    indicatorColor = scheme.surface,
+                    contentColor = scheme.onSurfaceVariant,
+                    selectedContentColor = scheme.primary,
+                    modifier = Modifier.width(68.dp),
+                    gap = 2.dp,
+                    padding = 3.dp,
+                    containerRadius = 16.dp,
+                    indicatorRadius = 13.dp,
+                    minItemHeight = 26.dp,
+                ) { index, active, foreground ->
+                    Icon(
+                        imageVector = if (index == 0) {
+                            if (active) Icons.Rounded.GridView else Icons.Outlined.GridView
+                        } else {
+                            if (active) Icons.Rounded.ViewAgenda else Icons.Outlined.ViewAgenda
+                        },
+                        contentDescription = stringResource(if (index == 0) R.string.view_mode_grid else R.string.view_mode_list),
+                        tint = foreground,
+                        modifier = Modifier.size(17.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SelectionChip(label: String, onClick: () -> Unit) {
+    Text(
+        text = label.uppercase(),
+        fontSize = 10.sp,
+        lineHeight = 12.sp,
+        fontWeight = FontWeight.Medium,
+        letterSpacing = 0.9.sp,
+        color = MaterialTheme.colorScheme.onSurface,
+        modifier = Modifier
+            .clip(RoundedCornerShape(13.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 7.dp),
+    )
+}
+
+/**
+ * The two things a grid selection can do, floating above the navigation bar.
+ *
+ * A bar rather than more entries in the section row: these are commitments, and
+ * they belong under the thumb rather than at the top of a list the user is
+ * still scrolling through.
+ */
+@Composable
+private fun SelectionActionBar(
+    canAddToShelf: Boolean,
+    onAddToShelf: () -> Unit,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val scheme = MaterialTheme.colorScheme
+
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(26.dp))
+            .background(scheme.surfaceContainerHigh)
+            .padding(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (canAddToShelf) {
+            MorphingButton(
+                onClick = onAddToShelf,
+                color = scheme.primary,
+                modifier = Modifier.height(44.dp),
+            ) {
+                SelectionActionLabel(
+                    icon = Icons.Rounded.LibraryAdd,
+                    label = stringResource(R.string.library_menu_add_to_shelf),
+                    tint = scheme.onPrimary,
+                )
+            }
+        }
+        MorphingButton(
+            onClick = onDelete,
+            color = scheme.errorContainer,
+            modifier = Modifier.height(44.dp),
+        ) {
+            SelectionActionLabel(
+                icon = Icons.Rounded.Delete,
+                label = stringResource(R.string.library_delete_confirm),
+                tint = scheme.onErrorContainer,
+            )
+        }
+    }
+}
+
+@Composable
+private fun SelectionActionLabel(icon: ImageVector, label: String, tint: Color) {
+    Row(
+        modifier = Modifier.padding(horizontal = 18.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.size(18.dp),
+        )
+        Text(
+            text = label,
+            fontSize = 13.sp,
+            lineHeight = 16.sp,
+            fontWeight = FontWeight.Medium,
+            color = tint,
+            maxLines = 1,
+        )
+    }
+}
+
+/** How long a press has to be held before the item's menu appears. */
+private const val MenuHoldMillis = 260L
+
+/** Height of the "ALL BOOKS" row, held constant across selection mode. */
+private val SectionRowHeight = 32.dp
+
+/** One book's spine in a folder's list row, and how narrow it may go to fit. */
+private val SpineWidth = 34.dp
+private val MinSpineWidth = 26.dp
+private val SpineGap = 6.dp
+
+@Composable
+private fun LibraryTileActions(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val scheme = MaterialTheme.colorScheme
+    IconButton(onClick = onClick, modifier = modifier.size(48.dp)) {
+        Box(
+            modifier = Modifier.size(32.dp).clip(CircleShape).background(scheme.surfaceContainerHighest),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(Icons.Rounded.MoreVert, contentDescription = label, tint = scheme.onSurface, modifier = Modifier.size(20.dp))
+        }
+    }
+}
+
+// -------------------------------------------------------------- grid tiles
+
+@Composable
+private fun BookGridTile(
+    book: Book,
+    coverFile: java.io.File?,
+    pop: ShelfPopState,
+    selecting: Boolean,
+    selected: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    // A book that has just been added grows into its slot while the tiles
+    // around it slide aside — the same arrival a new folder gets.
+    val arrival by rememberEntryArrival(book.id, pop)
+    val goat = LocalGoatColors.current
+    val percent = book.libraryReadPercent
+
+    Column(
+        modifier = if (arrival < 1f) {
+            modifier.graphicsLayer {
+                // Grows from ShelfPopFrom into place. A layer, so the arrival
+                // costs a draw and not a re-measure of the row it lands in.
+                scaleX = ShelfPopFrom + (1f - ShelfPopFrom) * arrival
+                scaleY = ShelfPopFrom + (1f - ShelfPopFrom) * arrival
+                alpha = arrival
+            }
+        } else {
+            modifier
+        },
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(2f / 3f)
+                .clip(RoundedCornerShape(18.dp))
+                .combinedClickable(onLongClick = onLongClick, onClick = onClick)
+                .selectionOverlay(selected, RoundedCornerShape(18.dp)),
+        ) {
+            // No title on a coverless plate: the caption below already carries
+            // it, and the same words twice on one tile read as a rendering bug.
+            BookCover(book = book, coverFile = coverFile, titleSize = 0.sp, padding = 9.dp)
+            CoverCaption(
+                title = book.title,
+                author = book.author,
+                titleDirection = book.titleDirection,
+                authorDirection = book.authorDirection,
+            )
+            if (percent > 0) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(8.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(goat.pill)
+                        .padding(horizontal = 8.dp, vertical = 3.dp),
+                ) {
+                    Text(
+                        text = "$percent%",
+                        fontSize = 10.5.sp,
+                        lineHeight = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = if (percent == 100) goat.completionInk else MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+            }
+            BookFormatBadge(
+                format = book.format,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(start = 8.dp, top = if (percent > 0) 34.dp else 8.dp),
+            )
+            if (selecting) {
+                SelectionCheck(
+                    selected = selected,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp),
+                )
+            } else {
+                LibraryTileActions(
+                    label = stringResource(R.string.library_book_actions, book.title),
+                    onClick = onLongClick,
+                    modifier = Modifier.align(Alignment.TopEnd),
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun ShelfGridTile(
+    entry: LibraryEntry.ShelfEntry,
+    coverOf: (Book) -> java.io.File?,
+    pop: ShelfPopState,
+    selecting: Boolean,
+    selected: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val goat = LocalGoatColors.current
+    val extra = entry.books.size - 4
+    val arrival = rememberEntryArrival(entry.shelf.id, pop)
+    val arrivalAnimating = arrival.value < 1f
+
+    Column(modifier = modifier) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(2f / 3f)
+                .clip(RoundedCornerShape(22.dp))
+                .background(goat.folder)
+                .combinedClickable(onLongClick = onLongClick, onClick = onClick)
+                .selectionOverlay(selected, RoundedCornerShape(22.dp)),
+        ) {
+            // The label lives INSIDE the plate now, like a book's caption on its
+            // cover: under it, a shelf was a label taller than the books beside
+            // it and its row came out ragged.
+            Column(modifier = Modifier.fillMaxSize().padding(10.dp)) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .let { base ->
+                            if (arrivalAnimating) {
+                                // The artwork pops, the label under it does not: an
+                                // overshoot spring on 12sp type is visibly jittery.
+                                base.graphicsLayer {
+                                    scaleX = lerp(ShelfPopFrom, 1f, arrival.value)
+                                    scaleY = scaleX
+                                }
+                            } else {
+                                base
+                            }
+                        },
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    repeat(2) { row ->
+                        Row(
+                            modifier = Modifier.weight(1f).fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            repeat(2) { column ->
+                                val slot = row * 2 + column
+                                val book = entry.books.getOrNull(slot)
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        // Cropped a little squarer than 2:3 to
+                                        // leave the plate room for its label.
+                                        .fillMaxHeight()
+                                        .let { base ->
+                                            if (arrivalAnimating) {
+                                                // Mini covers land one after another, so a
+                                                // new folder reads as books dropping in
+                                                // rather than a card appearing.
+                                                base.graphicsLayer {
+                                                    val t = ((arrival.value - slot * 0.07f) / 0.6f)
+                                                        .coerceIn(0f, 1f)
+                                                    alpha = t
+                                                    scaleX = lerp(0.7f, 1f, t)
+                                                    scaleY = scaleX
+                                                }
+                                            } else {
+                                                base
+                                            }
+                                        }
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(
+                                            // Empty slots need to read as plates in
+                                            // every theme; `pill60` is near-black in
+                                            // Midnight and vanished into the shelf.
+                                            if (book == null) {
+                                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f)
+                                            } else {
+                                                Color.Transparent
+                                            },
+                                        ),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    if (book != null) {
+                                        BookCover(
+                                            book = book,
+                                            coverFile = coverOf(book),
+                                            titleSize = 0.sp,
+                                            padding = 0.dp,
+                                        )
+                                    }
+                                    // The count of what is NOT shown, over the last
+                                    // cover that is. Floating in the corner of the
+                                    // tile it looked like a badge on the folder;
+                                    // over the fourth cover it reads as "and this
+                                    // many more behind this one".
+                                    if (extra > 0 && slot == 3) {
+                                        Box(
+                                            modifier = Modifier
+                                                .matchParentSize()
+                                                .background(Color.Black.copy(alpha = 0.55f)),
+                                            contentAlignment = Alignment.Center,
+                                        ) {
+                                            Text(
+                                                text = "+$extra",
+                                                fontSize = 15.sp,
+                                                lineHeight = 18.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.White,
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(9.dp))
+                TileTitle(text = shelfName(entry), modifier = Modifier.padding(horizontal = 2.dp))
+                Spacer(Modifier.height(3.dp))
+                TileSubtitle(
+                    text = pluralStringResource(
+                        R.plurals.shelf_books_count,
+                        entry.books.size,
+                        entry.books.size,
+                    ),
+                    modifier = Modifier.padding(horizontal = 2.dp),
+                )
+                Spacer(Modifier.height(2.dp))
+            }
+            if (selecting) {
+                SelectionCheck(
+                    selected = selected,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp),
+                )
+            } else {
+                LibraryTileActions(
+                    label = stringResource(R.string.library_shelf_actions, shelfName(entry)),
+                    onClick = onLongClick,
+                    modifier = Modifier.align(Alignment.TopEnd),
+                )
+            }
+        }
+    }
+}
+
+/** The ring a ticked tile wears. Drawn, not laid out, so it costs no measure pass. */
+@Composable
+private fun Modifier.selectionOverlay(
+    selected: Boolean,
+    shape: RoundedCornerShape,
+): Modifier {
+    val primary = MaterialTheme.colorScheme.primary
+    return this.drawWithContent {
+        drawContent()
+        if (!selected) return@drawWithContent
+        val cornerPx = shape.topStart.toPx(size, this)
+        val radius = CornerRadius(cornerPx, cornerPx)
+        drawRoundRect(color = primary.copy(alpha = 0.22f), cornerRadius = radius)
+        val inset = 1.5.dp.toPx()
+        drawRoundRect(
+            color = primary,
+            cornerRadius = radius,
+            style = Stroke(3.dp.toPx()),
+            topLeft = Offset(inset, inset),
+            size = Size(size.width - inset * 2, size.height - inset * 2),
+        )
+    }
+}
+
+// -------------------------------------------------------------- list rows
+
+@Composable
+private fun BookListRow(
+    book: Book,
+    coverFile: java.io.File?,
+    pop: ShelfPopState,
+    selecting: Boolean,
+    selected: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val arrival by rememberEntryArrival(book.id, pop)
+    val goat = LocalGoatColors.current
+    val scheme = MaterialTheme.colorScheme
+    val fraction = book.libraryProgressFraction
+    val percent = book.libraryReadPercent
+    val progressFill = if (percent == 100) goat.completionFill else goat.folder
+
+    Box(
+        modifier = modifier
+            .let { base ->
+                if (arrival < 1f) {
+                    base.graphicsLayer {
+                        scaleX = ShelfPopFrom + (1f - ShelfPopFrom) * arrival
+                        scaleY = ShelfPopFrom + (1f - ShelfPopFrom) * arrival
+                        alpha = arrival
+                    }
+                } else {
+                    base
+                }
+            }
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(scheme.surfaceContainer)
+            .drawBehind {
+                if (fraction <= 0f) return@drawBehind
+                // Lazy list rows have no bounded height during measurement.
+                // Draw against the final row size instead of measuring an
+                // empty fillMaxHeight child, which can collapse to zero.
+                val width = size.width * fraction
+                drawRect(
+                    color = progressFill,
+                    topLeft = Offset(
+                        x = if (layoutDirection == LayoutDirection.Rtl) size.width - width else 0f,
+                        y = 0f,
+                    ),
+                    size = Size(width, size.height),
+                )
+            }
+            .combinedClickable(onLongClick = onLongClick, onClick = onClick)
+            .selectionOverlay(selected, RoundedCornerShape(20.dp)),
+    ) {
+        Row(
+            modifier = Modifier.padding(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(width = 48.dp, height = 72.dp)
+                    .clip(RoundedCornerShape(10.dp)),
+            ) {
+                BookCover(book = book, coverFile = coverFile, titleSize = 7.sp, padding = 6.dp)
+            }
+
+            Column(modifier = Modifier.weight(1f)) {
+                TileTitle(text = book.title, fontSize = 13.5.sp, maxLines = 2, direction = book.titleDirection)
+                book.author?.let { author ->
+                    Spacer(Modifier.height(2.dp))
+                    TileSubtitle(text = author, fontSize = 11.5.sp, direction = book.authorDirection)
+                }
+                Spacer(Modifier.height(8.dp))
+                BookFormatBadge(format = book.format)
+            }
+
+            if (selecting) {
+                SelectionCheck(selected = selected, modifier = Modifier.padding(end = 8.dp))
+            } else {
+                if (percent > 0) {
+                    Text(
+                        text = "$percent%",
+                        fontSize = 13.sp,
+                        lineHeight = 16.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = if (percent == 100) goat.completionInk else scheme.primary,
+                    )
+                }
+                LibraryTileActions(
+                    label = stringResource(R.string.library_book_actions, book.title),
+                    onClick = onLongClick,
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun ShelfListRow(
+    entry: LibraryEntry.ShelfEntry,
+    coverOf: (Book) -> java.io.File?,
+    pop: ShelfPopState,
+    selecting: Boolean,
+    selected: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    onAddBooks: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val goat = LocalGoatColors.current
+    val scheme = MaterialTheme.colorScheme
+    val arrival = rememberEntryArrival(entry.shelf.id, pop)
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .let { base ->
+                if (arrival.value < 1f) {
+                    // The whole card is the folder here, so all of it pops.
+                    base.graphicsLayer {
+                        scaleX = lerp(ShelfPopFrom, 1f, arrival.value)
+                        scaleY = scaleX
+                    }
+                } else {
+                    base
+                }
+            }
+            .clip(RoundedCornerShape(20.dp))
+            .background(goat.folder)
+            .combinedClickable(onLongClick = onLongClick, onClick = onClick)
+            .selectionOverlay(selected, RoundedCornerShape(20.dp))
+            .padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 12.dp),
+    ) {
+        Row(
+            // Keep the header stable when the actions button becomes a selection tick.
+            modifier = Modifier.height(48.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(7.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.FolderOpen,
+                contentDescription = null,
+                tint = scheme.primary,
+                modifier = Modifier.size(16.dp),
+            )
+            Text(
+                text = shelfName(entry),
+                fontSize = 13.sp,
+                lineHeight = 16.sp,
+                fontWeight = FontWeight.Medium,
+                color = goat.ink,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            if (selecting) {
+                SelectionCheck(selected = selected)
+            } else {
+                Text(
+                    text = pluralStringResource(
+                        R.plurals.shelf_books_count,
+                        entry.books.size,
+                        entry.books.size,
+                    ).uppercase(),
+                    fontSize = 8.5.sp,
+                    lineHeight = 10.sp,
+                    fontWeight = FontWeight.Medium,
+                    letterSpacing = 0.7.sp,
+                    color = scheme.onSurfaceVariant,
+                    maxLines = 1,
+                )
+                LibraryTileActions(
+                    label = stringResource(R.string.library_shelf_actions, shelfName(entry)),
+                    onClick = onLongClick,
+                )
+            }
+        }
+
+        Spacer(Modifier.height(10.dp))
+        BoxWithConstraints(
+            // The strip keeps its height whether or not there is anything in
+            // it, so an empty folder is the same size as a full one.
+            modifier = Modifier.height(SpineWidth * 3 / 2),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (entry.books.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .size(SelectionCheckDiameter + 12.dp)
+                        .clip(CircleShape)
+                        .background(scheme.primary)
+                        .clickable(onClick = onAddBooks),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Add,
+                        contentDescription = stringResource(R.string.shelf_add_books),
+                        tint = scheme.onPrimary,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+                return@BoxWithConstraints
+            }
+
+            // Every book that can be shown at a readable size, rather than a
+            // fixed six that stopped short of the right-hand edge. Spines
+            // narrow a little to let one more in before any of them is dropped,
+            // and the row is filled exactly when some have to be.
+            val fit = ((maxWidth + SpineGap) / (MinSpineWidth + SpineGap))
+                .toInt()
+                .coerceAtLeast(1)
+            val spines = entry.books.take(fit)
+            val hidden = entry.books.size - spines.size
+            val spineWidth = minOf(
+                SpineWidth,
+                (maxWidth - SpineGap * (spines.size - 1)) / spines.size,
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(SpineGap),
+            ) {
+                spines.forEachIndexed { index, book ->
+                    Box(
+                        modifier = Modifier
+                            .size(width = spineWidth, height = spineWidth * 3 / 2)
+                            .clip(RoundedCornerShape(8.dp)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        BookCover(
+                            book = book,
+                            coverFile = coverOf(book),
+                            titleSize = 5.5.sp,
+                            padding = 4.dp,
+                            alignBottom = true,
+                        )
+                        // The count rides the last spine there is room for, the
+                        // same way it rides the fourth cover of a grid tile.
+                        if (hidden > 0 && index == spines.lastIndex) {
+                            Box(
+                                modifier = Modifier
+                                    .matchParentSize()
+                                    .background(Color.Black.copy(alpha = 0.55f)),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    text = "+$hidden",
+                                    fontSize = 12.sp,
+                                    lineHeight = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ------------------------------------------------------------ empty states
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun EmptyLibrary(modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(140.dp)
+                .background(
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    shape = MaterialShapes.Cookie9Sided.toShape(),
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.AutoStories,
+                contentDescription = null,
+                modifier = Modifier.size(56.dp),
+                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+            )
+        }
+        Spacer(Modifier.height(24.dp))
+        Text(
+            text = stringResource(R.string.library_empty_title),
+            style = MaterialTheme.typography.titleLarge,
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = stringResource(R.string.library_empty_subtitle),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 28.dp),
+        )
+    }
+}
+
+@Composable
+private fun NoSearchResults(modifier: Modifier = Modifier, onClear: () -> Unit) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.Search,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(40.dp),
+        )
+        Spacer(Modifier.height(12.dp))
+        Text(
+            text = stringResource(R.string.library_search_empty),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+        TextButton(onClick = onClear) {
+            Text(stringResource(R.string.reader_search_clear))
+        }
+    }
+}
+
+// ----------------------------------------------------------------- dialogs
+
+// ----------------------------------------------------------------- helpers
+
+/**
+ * Lets a full-bleed item (the header) escape the grid's horizontal
+ * contentPadding, which the columns still need for their own math.
+ */
+private fun Modifier.bleedHorizontally(amount: Dp): Modifier = this.layout { measurable, constraints ->
+    val extra = amount.roundToPx() * 2
+    val widened = constraints.copy(
+        minWidth = constraints.minWidth + extra,
+        maxWidth = constraints.maxWidth + extra,
+    )
+    val placeable = measurable.measure(widened)
+    layout(placeable.width - extra, placeable.height) {
+        placeable.place(-amount.roundToPx(), 0)
+    }
+}
+
+@Composable
+internal fun shelfName(entry: LibraryEntry.ShelfEntry): String =
+    entry.shelf.name.ifBlank { stringResource(R.string.shelf_unnamed) }
+
+@Composable
+private fun chapterLine(book: Book): String {
+    val left = book.progress.pagesLeftInChapter
+    return if (left >= 0) {
+        pluralStringResource(R.plurals.library_pages_left_in_chapter, left, left)
+    } else {
+        val fraction = book.libraryProgressFraction
+        stringResource(R.string.library_percent_left, ((1f - fraction) * 100).roundToInt())
+    }
+}

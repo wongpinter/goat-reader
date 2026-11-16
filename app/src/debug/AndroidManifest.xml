@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <activity
+            android:name="com.wongpinter.goatreader.debug.ReaderOpeningTestActivity"
+            android:exported="false"
+            android:taskAffinity="${applicationId}.reader_test"
+            android:theme="@style/Theme.GoatReader"
+            android:windowSoftInputMode="adjustResize" />
+    </application>
+</manifest>

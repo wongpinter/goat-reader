@@ -1,0 +1,69 @@
+package com.wongpinter.goatreader.reader
+
+import com.wongpinter.goatreader.ui.reader.ReaderContentsTree
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class ReaderContentsTreeTest {
+    private val tree = ReaderContentsTree(listOf(0, 0, 1, 1, 0, 1, 2, 1, 0))
+
+    @Test
+    fun `collapsed parts hide all descendants but preserve following sections`() {
+        assertEquals(listOf(0, 1, 4, 8), tree.visibleIndices { it == 1 || it == 4 })
+        assertEquals(listOf(0, 1, 2, 3, 4, 5, 7, 8), tree.visibleIndices { it == 5 })
+        assertEquals((0..8).toList(), tree.visibleIndices { false })
+    }
+
+    @Test
+    fun `primitive visibility index matches the list projection`() {
+        val expected = tree.visibleIndices { it == 1 }.toIntArray()
+        assertTrue(expected.contentEquals(tree.visibleIndicesArray { it == 1 }))
+        assertEquals(7_208, ReaderContentsTree(7_208) { 0 }.visibleIndicesArray { false }.size)
+    }
+
+    @Test
+    fun `opening the current path reveals its nested chapter`() {
+        val expanded = tree.ancestorsOf(6).toSet()
+        assertEquals(setOf(5, 4), expanded)
+        assertEquals(listOf(0, 1, 4, 5, 6, 7, 8), tree.visibleIndices { it !in expanded })
+    }
+
+    @Test
+    fun `irregular depth jumps still find the nearest enclosing entry`() {
+        val irregular = ReaderContentsTree(listOf(2, 4, 7, 3, 0))
+        assertEquals(listOf(-1, 0, 1, 0, -1), irregular.parent.toList())
+        assertEquals(listOf(0, 4), irregular.visibleIndices { it == 0 })
+        assertTrue(ReaderContentsTree(emptyList()).visibleIndices { true }.isEmpty())
+    }
+
+    @Test
+    fun `deep collapsed hierarchy requires no recursive row traversal`() {
+        val deep = ReaderContentsTree((0 until 10_000).toList())
+        var evaluatedGroups = 0
+        assertEquals(listOf(0), deep.visibleIndices { evaluatedGroups++; true })
+        assertEquals(1, evaluatedGroups)
+    }
+
+    @Test
+    fun `current chapter maps to the visible row after collapsed earlier sections`() {
+        val visible = tree.visibleIndices { it == 1 }
+        assertEquals(4, tree.visiblePositionOf(6, visible))
+        assertEquals(6, tree.visiblePositionOf(6, tree.visibleIndices { false }))
+    }
+
+    @Test
+    fun `hidden current chapter falls back to its nearest visible section`() {
+        assertEquals(5, tree.visiblePositionOf(6, tree.visibleIndices { it == 5 }))
+        assertEquals(4, tree.visiblePositionOf(6, tree.visibleIndices { it == 4 }))
+    }
+
+    @Test
+    fun `missing or invalid current entry safely opens at the start`() {
+        val visible = tree.visibleIndices { false }
+        assertEquals(0, tree.visiblePositionOf(null, visible))
+        assertEquals(0, tree.visiblePositionOf(-1, visible))
+        assertEquals(0, tree.visiblePositionOf(100, visible))
+        assertEquals(0, ReaderContentsTree(emptyList()).visiblePositionOf(0, emptyList()))
+    }
+}

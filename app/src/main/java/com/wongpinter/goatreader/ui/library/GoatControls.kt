@@ -1,0 +1,395 @@
+package com.wongpinter.goatreader.ui.library
+
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.systemBarsIgnoringVisibility
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextDirection
+import com.wongpinter.goatreader.data.model.BookTextDirection
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.wongpinter.goatreader.R
+import com.wongpinter.goatreader.ui.theme.LocalGoatColors
+import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.LineHeightStyle
+import androidx.compose.ui.text.PlatformTextStyle
+
+/**
+ * The controls the library is built out of, shared with every screen that has
+ * to sit next to it.
+ *
+ * They live here rather than inside LibraryScreen because a second screen that
+ * re-derives "what a Goat Reader button looks like" from a screenshot ends up
+ * subtly wrong in ten places at once — a border here, a stock Material shape
+ * there — and the app stops reading as one thing.
+ */
+
+/** Shared geometry keeps the two top-level screens aligned when switching tabs. */
+internal val GoatHeroCorner = 28.dp
+internal val GoatHeroPadding = 14.dp
+internal val GoatHeroContentHeight = 147.dp
+
+@Composable
+internal fun goatHeroHeight() = GoatHeroPadding * 2 +
+    GoatHeroContentHeight * LocalDensity.current.fontScale.coerceAtLeast(1f)
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun GoatHeaderContent(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    searchHint: String,
+    onOpenSettings: () -> Unit,
+    modifier: Modifier = Modifier,
+    searchEnabled: Boolean = true,
+    controlColor: Color? = null,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Column(
+        modifier = modifier.fillMaxWidth()
+            .padding(WindowInsets.systemBarsIgnoringVisibility
+                .only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal).asPaddingValues())
+            .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            GoatSearchField(
+                query = query,
+                onQueryChange = onQueryChange,
+                hint = searchHint,
+                enabled = searchEnabled,
+                containerColor = controlColor,
+                modifier = Modifier.weight(1f),
+            )
+            GlassIconButton(
+                icon = Icons.Rounded.Settings,
+                contentDescription = stringResource(R.string.settings_title),
+                onClick = onOpenSettings,
+                containerColor = controlColor,
+            )
+        }
+        content()
+    }
+}
+
+/**
+ * A button whose corners tighten when pressed.
+ *
+ * The press feedback in this app is the SHAPE, not a ripple: the corner radius
+ * springs from 20dp to 10dp and back with a little bounce.
+ */
+@Composable
+internal fun MorphingButton(
+    onClick: () -> Unit,
+    color: Color,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    content: @Composable () -> Unit,
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val corner by animateFloatAsState(
+        targetValue = if (pressed) 10f else 20f,
+        animationSpec = spring(
+            stiffness = Spring.StiffnessMediumLow,
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+        ),
+        label = "buttonCorner",
+    )
+
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(corner.dp))
+            .background(color)
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                enabled = enabled,
+                onClick = onClick,
+            ),
+        contentAlignment = Alignment.Center,
+    ) { content() }
+}
+
+/**
+ * The rounded glass search pill from the library header.
+ *
+ * Deliberately not an OutlinedTextField: nothing else in this app has a hairline
+ * box drawn around it, and one appearing on a single screen reads as a control
+ * borrowed from a different program.
+ */
+@Composable
+internal fun GoatSearchField(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    hint: String,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    containerColor: Color? = null,
+) {
+    val goat = LocalGoatColors.current
+
+    Row(
+        modifier = modifier
+            .height(44.dp)
+            .clip(RoundedCornerShape(22.dp))
+            .background(containerColor ?: goat.glass)
+            .then(if (enabled) Modifier else Modifier.semantics(mergeDescendants = true) { disabled() })
+            .padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(9.dp),
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.Search,
+            contentDescription = null,
+            tint = goat.ink2,
+            modifier = Modifier.size(19.dp),
+        )
+        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+            if (query.isEmpty()) {
+                Text(
+                    text = hint,
+                    fontSize = 14.sp,
+                    lineHeight = 18.sp,
+                    fontWeight = FontWeight.Normal,
+                    color = goat.ink2,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (enabled) BasicTextField(
+                value = query,
+                onValueChange = onQueryChange,
+                singleLine = true,
+                textStyle = TextStyle(
+                    fontSize = 14.sp,
+                    lineHeight = 18.sp,
+                    fontWeight = FontWeight.Normal,
+                    color = goat.ink,
+                ),
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        if (enabled && query.isNotEmpty()) {
+            Icon(
+                imageVector = Icons.Rounded.Close,
+                contentDescription = stringResource(R.string.library_search_clear),
+                tint = goat.ink2,
+                modifier = Modifier
+                    .size(19.dp)
+                    .clickable { onQueryChange("") },
+            )
+        }
+    }
+}
+
+/** The circular chrome button the library uses for settings and close. */
+@Composable
+internal fun GlassIconButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    contentDescription: String?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    containerColor: Color? = null,
+) {
+    val goat = LocalGoatColors.current
+    Box(
+        modifier = modifier
+            .size(42.dp)
+            .clip(CircleShape)
+            .background(containerColor ?: goat.glass)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = goat.ink2,
+            modifier = Modifier.size(21.dp),
+        )
+    }
+}
+
+/**
+ * The title under a cover, and the author under the title.
+ *
+ * They exist as a pair because of the gap that used to open up between them.
+ * A 12.5sp glyph inside a 16sp line box carries ~1.75sp of leading below it and
+ * the 11sp author carries ~1.5sp above its own — so a one-line title sat a
+ * visible step away from its author while a two-line one did not. Trimming the
+ * line box to the glyphs ([LineHeightStyle.Trim.Both], no font padding) makes
+ * both cases look the same, and makes the 2dp between them mean 2dp.
+ *
+ * No `minLines`: the author follows the title wherever it ends. Rows in a grid
+ * are then unequal in height, which is the intended look — reserving two lines
+ * everywhere is exactly the gap this removes.
+ */
+@Composable
+internal fun TileTitle(
+    text: String,
+    modifier: Modifier = Modifier,
+    maxLines: Int = 1,
+    fontSize: TextUnit = 12.5.sp,
+    direction: BookTextDirection? = null,
+) {
+    Text(
+        text = text,
+        style = TrimmedLineHeight.withBookTextDirection(direction),
+        fontSize = fontSize,
+        lineHeight = fontSize * 1.28f,
+        fontWeight = FontWeight.Medium,
+        color = MaterialTheme.colorScheme.onSurface,
+        maxLines = maxLines,
+        overflow = TextOverflow.Ellipsis,
+        modifier = modifier,
+    )
+}
+
+@Composable
+internal fun TileSubtitle(
+    text: String,
+    modifier: Modifier = Modifier,
+    fontSize: TextUnit = 11.sp,
+    direction: BookTextDirection? = null,
+) {
+    Text(
+        text = text,
+        style = TrimmedLineHeight.withBookTextDirection(direction),
+        fontSize = fontSize,
+        lineHeight = fontSize * 1.27f,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = modifier,
+    )
+}
+
+internal fun TextStyle.withBookTextDirection(direction: BookTextDirection?): TextStyle =
+    if (direction == null) this else copy(
+        textDirection = when (direction) {
+            BookTextDirection.LTR -> TextDirection.Ltr
+            BookTextDirection.RTL -> TextDirection.Rtl
+            BookTextDirection.AUTO -> TextDirection.Content
+        },
+    )
+
+private val TrimmedLineHeight = TextStyle(
+    platformStyle = PlatformTextStyle(includeFontPadding = false),
+    lineHeightStyle = LineHeightStyle(
+        alignment = LineHeightStyle.Alignment.Center,
+        trim = LineHeightStyle.Trim.Both,
+    ),
+)
+
+/** "ALL BOOKS" — the small uppercase heading that opens a section. */
+@Composable
+internal fun SectionLabel(
+    text: String,
+    modifier: Modifier = Modifier,
+) {
+    Text(
+        text = text.uppercase(),
+        fontSize = 12.sp,
+        lineHeight = 14.sp,
+        fontWeight = FontWeight.Medium,
+        letterSpacing = 1.2.sp,
+        color = MaterialTheme.colorScheme.onSurface,
+        modifier = modifier,
+    )
+}
+
+/** Rows that must not resize when a tick appears reserve exactly this. */
+internal val SelectionCheckDiameter = 26.dp
+
+/**
+ * A round tick, in place of the stock Material checkbox.
+ *
+ * The square box with its own outline is the one shape this app never draws;
+ * next to covers with 10dp corners and pill buttons it reads as a form control
+ * that wandered in from a settings screen.
+ */
+@Composable
+internal fun SelectionCheck(
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+) {
+    val goat = LocalGoatColors.current
+    val scheme = MaterialTheme.colorScheme
+    val alpha = if (enabled) 1f else 0.4f
+
+    Box(
+        modifier = modifier
+            .size(SelectionCheckDiameter)
+            .clip(CircleShape)
+            .background(
+                if (selected) scheme.primary.copy(alpha = alpha) else goat.chip.copy(alpha = alpha),
+            )
+            .then(
+                if (selected) {
+                    Modifier
+                } else {
+                    Modifier.border(1.5.dp, goat.ink2.copy(alpha = 0.35f * alpha), CircleShape)
+                },
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (selected) {
+            Icon(
+                imageVector = Icons.Rounded.Check,
+                contentDescription = null,
+                tint = scheme.onPrimary,
+                modifier = Modifier.size(16.dp),
+            )
+        }
+    }
+}

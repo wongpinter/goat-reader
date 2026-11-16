@@ -1,0 +1,291 @@
+package com.wongpinter.goatreader.data.backup
+
+import com.wongpinter.goatreader.data.LegacySettingsDefaults
+import com.wongpinter.goatreader.data.ReadingStats
+import com.wongpinter.goatreader.data.model.BackupDocument
+import com.wongpinter.goatreader.data.model.BackupManifest
+import com.wongpinter.goatreader.data.model.BackupMode
+import com.wongpinter.goatreader.data.model.BackupSettings
+import com.wongpinter.goatreader.data.model.Book
+import com.wongpinter.goatreader.data.model.ReadingLogEntry
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonObject
+import java.io.File
+import java.io.IOException
+import java.io.InputStream
+import java.io.OutputStream
+import java.util.zip.ZipEntry
+import java.util.zip.ZipInputStream
+import java.util.zip.ZipOutputStream
+
+/** A backup file was not one, or was damaged. */
+class BackupFormatException(message: String, cause: Throwable? = null) : IOException(message, cause)
+
+/**
+ * Reads and writes the backup zip. Knows nothing about where the bytes come
+ * from or go to — that is [BackupTarget]'s job — and nothing about Android,
+ * which is what lets the round trip be tested on the JVM.
+ *
+ * Layout:
+ *
+ *   manifest.json      written first, so a reader can decide before unpacking
+ *   library.json       whole books, shelves and the ordered reading queue
+ *   stats.json         per-day reading time
+ *   settings.json      reader and app settings
+ *   books/<id>.<ext>   FULL mode only
+ *   covers/<name>      log covers in every mode; other covers in FULL mode
+ */
+object BackupArchive {
+
+    private const val MANIFEST = "manifest.json"
+    private const val LIBRARY = "library.json"
+    private const val STATS = "stats.json"
+    private const val SETTINGS = "settings.json"
+    private const val BOOKS_DIR = "books/"
+    private const val COVERS_DIR = "covers/"
+
+    private val json = Json {
+        ignoreUnknownKeys = true
+        prettyPrint = true
+        encodeDefaults = true
+    }
+
+    /** What came out of a backup file, once unpacked. */
+    data class Contents(
+        val manifest: BackupManifest,
+        val document: BackupDocument,
+        val stats: ReadingStats?,
+        val settings: BackupSettings?,
+        /** Book ids whose file was restored, and the name it was written under. */
+        val restoredBookFiles: Map<String, String>,
+        val restoredCovers: Set<String>,
+    )
+
+    /** Resolve file availability equally for library books and private reading-queue attachments. */
+    internal fun Contents.resolveDocument(booksDir: File, coversDir: File): BackupDocument {
+        fun resolve(book: Book): Book = book.copy(
+            fileName = restoredBookFiles[book.id]
+                ?: book.fileName?.takeIf { File(booksDir, it).exists() },
+            coverFileName = book.coverFileName?.takeIf { File(coversDir, it).exists() },
+        )
+        return document.copy(books = document.books.map(::resolve),
+            readingQueue = document.readingQueue.map { it.copy(attachment = it.attachment?.let(::resolve)) },
+            readingLog = document.readingLog.map { entry -> entry.copy(coverFileName = entry.coverFileName
+                ?.takeIf { it == File(it).name && File(coversDir, it).exists() }) })
+    }
+
+    fun write(
+        out: OutputStream,
+        document: BackupDocument,
+        stats: ReadingStats,
+        settings: BackupSettings,
+        mode: BackupMode,
+        appVersion: String,
+        createdAtMillis: Long,
+        /** The book's file on disk, or null if it has none. FULL mode only. */
+        bookFile: (Book) -> File? = { null },
+        coverFile: (Book) -> File? = { null },
+        onProgress: (done: Int, total: Int) -> Unit = { _, _ -> },
+        /** Log art includes irreplaceable photos, so even DATA archives retain it. */
+        logCoverFile: (ReadingLogEntry) -> File? = { null },
+    ) {
+        val manifest = BackupManifest(
+            appVersion = appVersion,
+            createdAtMillis = createdAtMillis,
+            mode = mode,
+            bookCount = document.books.size,
+            quoteCount = document.books.sumOf { it.quotes.size },
+            readingQueueCount = document.readingQueue.size,
+            readingLogCount = document.readingLog.size,
+        )
+
+        ZipOutputStream(out.buffered()).use { zip ->
+            // Manifest first and uncompressed-cheap, so a reader can inspect a
+            // large archive without unpacking it.
+            zip.putText(MANIFEST, json.encodeToString(BackupManifest.serializer(), manifest))
+            zip.putText(LIBRARY, json.encodeToString(BackupDocument.serializer(), document))
+            zip.putText(STATS, json.encodeToString(ReadingStats.serializer(), stats))
+            zip.putText(SETTINGS, json.encodeToString(BackupSettings.serializer(), settings))
+
+            val writtenCovers = HashSet<String>()
+            document.readingLog.forEach { entry ->
+                logCoverFile(entry)?.takeIf { it.exists() && writtenCovers.add(it.name) }?.let { file ->
+                    zip.putFile("$COVERS_DIR${file.name}", file)
+                }
+            }
+            if (mode != BackupMode.FULL) {
+                onProgress(document.books.size, document.books.size)
+                return@use
+            }
+
+            val assets = document.assetBooks
+            assets.forEachIndexed { index, book ->
+                bookFile(book)?.takeIf { it.exists() }?.let { file ->
+                    zip.putFile("$BOOKS_DIR${book.id}.${file.extension}", file)
+                }
+                coverFile(book)?.takeIf { it.exists() && writtenCovers.add(it.name) }?.let { file ->
+                    zip.putFile("$COVERS_DIR${file.name}", file)
+                }
+                onProgress(index + 1, assets.size)
+            }
+        }
+    }
+
+    /**
+     * Reads just the manifest, without unpacking the rest.
+     *
+     * The restore flow shows the user what they are about to replace their
+     * library with — the date, the book count, whether the files are in there —
+     * and for a FULL backup that must not mean reading hundreds of megabytes.
+     */
+    fun readManifest(input: InputStream): BackupManifest {
+        ZipInputStream(input.buffered()).use { zip ->
+            var entry = zip.nextEntry
+            while (entry != null) {
+                if (entry.name == MANIFEST) {
+                    return decodeManifest(zip.readBytes().decodeToString())
+                }
+                entry = zip.nextEntry
+            }
+        }
+        throw BackupFormatException("This file has no backup manifest — is it a GoatReader backup?")
+    }
+
+    /**
+     * Unpacks the whole archive. Book files and covers land in [booksDir] and
+     * [coversDir]; pass null to skip them.
+     */
+    fun read(
+        input: InputStream,
+        booksDir: File?,
+        coversDir: File?,
+        onProgress: (done: Int, total: Int) -> Unit = { _, _ -> },
+    ): Contents {
+        var manifest: BackupManifest? = null
+        var document: BackupDocument? = null
+        var stats: ReadingStats? = null
+        var settings: BackupSettings? = null
+        val bookFiles = LinkedHashMap<String, String>()
+        val covers = LinkedHashSet<String>()
+
+        val checkedInput = BackupZipInputStream(input.buffered())
+        ZipInputStream(checkedInput).use { zip ->
+            while (true) {
+                val entry = zip.nextEntry ?: break
+                if (entry.isDirectory) continue
+                val name = entry.name
+                val expected = manifest?.bookCount ?: 0
+                when {
+                    name == MANIFEST -> manifest = decodeManifest(zip.readBytes().decodeToString())
+                    name == LIBRARY -> document = decode(
+                        BackupDocument.serializer(), zip.readBytes().decodeToString(), LIBRARY,
+                    )
+                    // Settings and stats are conveniences, not the point of a
+                    // backup. A damaged one must not cost the user their quotes.
+                    name == STATS -> {
+                        // Tolerate invalid optional JSON, but propagate ZIP I/O
+                        // errors: a truncated archive may also be missing books.
+                        val text = zip.readBytes().decodeToString()
+                        stats = runCatching {
+                            json.decodeFromString(ReadingStats.serializer(), text)
+                        }.getOrNull()
+                    }
+                    name == SETTINGS -> {
+                        val text = zip.readBytes().decodeToString()
+                        settings = runCatching {
+                            decodeSettings(text)
+                        }.getOrNull()
+                    }
+
+                    name.startsWith(BOOKS_DIR) && booksDir != null -> {
+                        // An unusable name is skipped, not fatal: one odd entry
+                        // should not cost the user the rest of the restore.
+                        val safe = safeName(name.removePrefix(BOOKS_DIR)) ?: continue
+                        booksDir.mkdirs()
+                        File(booksDir, safe).outputStream().use { zip.copyTo(it) }
+                        bookFiles[safe.substringBeforeLast('.')] = safe
+                        onProgress(bookFiles.size, expected)
+                    }
+
+                    name.startsWith(COVERS_DIR) && coversDir != null -> {
+                        val safe = safeName(name.removePrefix(COVERS_DIR)) ?: continue
+                        coversDir.mkdirs()
+                        File(coversDir, safe).outputStream().use { zip.copyTo(it) }
+                        covers += safe
+                    }
+                }
+            }
+            checkedInput.requireCompleteArchive()
+        }
+
+        val readManifest = manifest
+            ?: throw BackupFormatException("This file has no backup manifest — is it a GoatReader backup?")
+        val readDocument = document
+            ?: throw BackupFormatException("This backup has no library in it.")
+        return Contents(readManifest, readDocument, stats, settings, bookFiles, covers)
+    }
+
+    /** Older archives may omit default fields; restoring them must retain the old defaults. */
+    private fun decodeSettings(text: String): BackupSettings {
+        val saved = json.parseToJsonElement(text).jsonObject
+        val legacy = json.encodeToJsonElement(
+            BackupSettings.serializer(),
+            BackupSettings(reader = LegacySettingsDefaults.reader, app = LegacySettingsDefaults.app),
+        ).jsonObject
+        fun withMissingDefaults(key: String): JsonObject {
+            val defaults = legacy.getValue(key).jsonObject
+            val stored = saved[key] ?: return defaults
+            return JsonObject(defaults + stored.jsonObject)
+        }
+        val restored = JsonObject(saved + mapOf(
+            "reader" to withMissingDefaults("reader"),
+            "app" to withMissingDefaults("app"),
+        ))
+        return json.decodeFromJsonElement(BackupSettings.serializer(), restored)
+    }
+
+    private fun decodeManifest(text: String): BackupManifest {
+        val manifest = decode(BackupManifest.serializer(), text, MANIFEST)
+        if (manifest.formatVersion > BackupManifest.FORMAT_VERSION) {
+            throw BackupFormatException(
+                "This backup was written by a newer version of GoatReader (format " +
+                    "${manifest.formatVersion}). Update the app and try again.",
+            )
+        }
+        return manifest
+    }
+
+    private fun <T> decode(
+        serializer: kotlinx.serialization.KSerializer<T>,
+        text: String,
+        what: String,
+    ): T = try {
+        json.decodeFromString(serializer, text)
+    } catch (e: Exception) {
+        throw BackupFormatException("$what inside the backup is damaged.", e)
+    }
+
+    /**
+     * Zip entries carry whatever path the writer put in them, and a crafted
+     * `../../` would let an archive write outside the app's own directories.
+     * Only a plain file name is ever accepted.
+     */
+    private fun safeName(raw: String): String? {
+        val name = raw.substringAfterLast('/').substringAfterLast('\\')
+        if (name.isBlank() || name == "." || name == "..") return null
+        return name
+    }
+
+    private fun ZipOutputStream.putText(name: String, text: String) {
+        putNextEntry(ZipEntry(name))
+        write(text.toByteArray(Charsets.UTF_8))
+        closeEntry()
+    }
+
+    private fun ZipOutputStream.putFile(name: String, file: File) {
+        putNextEntry(ZipEntry(name))
+        file.inputStream().use { it.copyTo(this) }
+        closeEntry()
+    }
+}

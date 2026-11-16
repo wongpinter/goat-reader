@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Window theme shown before Compose takes over (splash + first frame).
+         All real theming happens in Compose (MaterialExpressiveTheme + dynamic color). -->
+    <style name="Theme.GoatReader" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <!-- The activity's manifest theme, so the system starting window is the
+         splash. installSplashScreen() swaps in postSplashScreenTheme as soon
+         as onCreate runs. -->
+    <style name="Theme.GoatReader.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
+        <item name="postSplashScreenTheme">@style/Theme.GoatReader</item>
+    </style>
+</resources>

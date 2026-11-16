@@ -1,0 +1,352 @@
+package com.wongpinter.goatreader.ui.settings
+
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Login
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
+import androidx.compose.material.icons.rounded.Fingerprint
+import androidx.compose.material.icons.rounded.Brightness6
+import androidx.compose.material.icons.rounded.DragHandle
+import androidx.compose.material.icons.automirrored.rounded.MenuBook
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.SwipeUp
+import androidx.compose.material.icons.rounded.Timer
+import androidx.compose.material.icons.rounded.Translate
+import androidx.compose.material.icons.rounded.Vibration
+import androidx.compose.material.icons.rounded.Visibility
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.wongpinter.goatreader.R
+import com.wongpinter.goatreader.data.AppLockDelay
+import com.wongpinter.goatreader.data.AppSettings
+import com.wongpinter.goatreader.data.StartupDestination
+import com.wongpinter.goatreader.data.translation.EXTERNAL_TEXT_ASK_EVERY_TIME
+import com.wongpinter.goatreader.data.translation.ExternalTextAction
+import com.wongpinter.goatreader.data.translation.resolveExternalTextApp
+import com.wongpinter.goatreader.ui.lock.canUseAppLock
+import com.wongpinter.goatreader.ui.translation.ExternalTextAppPickerDialog
+import com.wongpinter.goatreader.ui.translation.descriptionRes
+import com.wongpinter.goatreader.ui.translation.rememberExternalTextApps
+import com.wongpinter.goatreader.ui.translation.titleRes
+import java.io.IOException
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
+
+@Composable
+internal fun ReadingSettingsPage(
+    settings: AppSettings,
+    onUpdate: ((AppSettings) -> AppSettings) -> Unit,
+    onBack: () -> Unit,
+    saveExternalApp: suspend ((AppSettings) -> AppSettings) -> Unit = { onUpdate(it) },
+    onExternalAppSaveFailed: () -> Unit = {},
+) {
+    var choosingAction by remember { mutableStateOf<ExternalTextAction?>(null) }
+    var savingChoice by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    choosingAction?.let { action ->
+        fun saveChoice(id: String?) {
+            if (savingChoice) return
+            savingChoice = true
+            scope.launch {
+                try {
+                    saveExternalApp { it.withDefaultApp(action, id) }
+                    choosingAction = null
+                } catch (_: IOException) {
+                    onExternalAppSaveFailed()
+                } catch (failure: RuntimeException) {
+                    if (failure is CancellationException) throw failure
+                    onExternalAppSaveFailed()
+                } finally {
+                    savingChoice = false
+                }
+            }
+        }
+        ExternalTextAppPickerDialog(
+            action = action,
+            selected = settings.defaultApp(action),
+            busy = savingChoice,
+            onChoose = { app -> saveChoice(app.id) },
+            onAskEveryTime = { saveChoice(EXTERNAL_TEXT_ASK_EVERY_TIME) },
+            onReset = { saveChoice(null) },
+            onDismiss = { choosingAction = null },
+        )
+    }
+    SettingsPageScaffold(
+        title = stringResource(R.string.settings_reading_title),
+        onBack = onBack,
+    ) {
+        SettingsSectionLabel(stringResource(R.string.settings_reader_panels_section))
+        SettingsCard {
+            ReaderChromeStyleSettingsRow(
+                settings = settings,
+                onSelected = { selected ->
+                    onUpdate { it.copy(readerChromeStyle = selected) }
+                },
+            )
+            SettingsDivider()
+            ReaderPanelBehaviorSettingsRows(settings, onUpdate)
+        }
+
+        Spacer(Modifier.height(24.dp))
+        SettingsSectionLabel(stringResource(R.string.settings_controls_gestures_section))
+        SettingsCard {
+            SettingsSwitchRow(
+                icon = Icons.AutoMirrored.Rounded.VolumeUp,
+                title = stringResource(R.string.settings_volume_keys),
+                subtitle = stringResource(R.string.settings_volume_keys_subtitle),
+                checked = settings.volumeKeyPaging,
+                onCheckedChange = { checked ->
+                    onUpdate { it.copy(volumeKeyPaging = checked) }
+                },
+            )
+            SettingsDivider()
+            SettingsSwitchRow(
+                icon = Icons.Rounded.Brightness6,
+                title = stringResource(R.string.settings_reader_brightness_swipe),
+                subtitle = stringResource(R.string.settings_reader_brightness_swipe_subtitle),
+                checked = settings.brightnessSwipeEnabled,
+                onCheckedChange = { checked ->
+                    onUpdate { it.copy(brightnessSwipeEnabled = checked) }
+                },
+            )
+            SettingsDivider()
+            SettingsSwitchRow(
+                icon = Icons.Rounded.Vibration,
+                title = stringResource(R.string.settings_haptics),
+                subtitle = stringResource(R.string.settings_haptics_subtitle),
+                checked = settings.haptics,
+                onCheckedChange = { checked ->
+                    onUpdate { it.copy(haptics = checked) }
+                },
+            )
+        }
+
+        Spacer(Modifier.height(24.dp))
+        SettingsSectionLabel(stringResource(R.string.settings_selected_text_section))
+        SettingsCard {
+            ExternalTextAction.entries.forEachIndexed { index, action ->
+                val apps = rememberExternalTextApps(action)
+                val choice = settings.defaultApp(action)
+                val selectedApp = apps?.let { resolveExternalTextApp(it, choice) }
+                val selectedLabel = if (selectedApp != null) {
+                    if (selectedApp.label == selectedApp.actionLabel) selectedApp.label else stringResource(
+                        R.string.external_text_app_and_action,
+                        selectedApp.label,
+                        selectedApp.actionLabel,
+                    )
+                } else stringResource(
+                    when {
+                        choice == EXTERNAL_TEXT_ASK_EVERY_TIME -> R.string.external_text_ask_every_time
+                        choice == null -> R.string.external_text_not_selected
+                        apps == null -> R.string.external_text_loading
+                        else -> R.string.external_text_unavailable
+                    },
+                )
+                if (index > 0) {
+                    SettingsDivider()
+                }
+                ExternalTextActionSettingsRow(
+                    action = action,
+                    selectedLabel = selectedLabel,
+                    onClick = { choosingAction = action },
+                )
+            }
+        }
+
+        Spacer(Modifier.height(24.dp))
+        SettingsSectionLabel(stringResource(R.string.settings_screen_startup_section))
+        SettingsCard {
+            SettingsControlRow(
+                icon = Icons.AutoMirrored.Rounded.Login,
+                title = stringResource(R.string.settings_startup_title),
+                subtitle = stringResource(R.string.settings_startup_subtitle),
+                selected = settings.startupDestination,
+                options = listOf(
+                    StartupDestination.LIBRARY to stringResource(R.string.nav_library),
+                    StartupDestination.LAST_BOOK to stringResource(R.string.settings_startup_last_book),
+                ),
+                onSelected = { selected ->
+                    onUpdate { it.copy(startupDestination = selected) }
+                },
+            )
+            SettingsDivider()
+            SettingsSwitchRow(
+                icon = Icons.Rounded.Visibility,
+                title = stringResource(R.string.settings_keep_screen_on),
+                subtitle = stringResource(R.string.settings_keep_screen_on_subtitle),
+                checked = settings.keepScreenOn,
+                onCheckedChange = { checked ->
+                    onUpdate { it.copy(keepScreenOn = checked) }
+                },
+            )
+        }
+        SettingsHelper(stringResource(R.string.settings_reading_helper))
+    }
+}
+
+@Composable
+internal fun ExternalTextActionSettingsRow(
+    action: ExternalTextAction,
+    selectedLabel: String,
+    onClick: () -> Unit,
+) {
+    SettingsNavigationRow(
+        icon = when (action) {
+            ExternalTextAction.TRANSLATE -> Icons.Rounded.Translate
+            ExternalTextAction.DEFINE -> Icons.AutoMirrored.Rounded.MenuBook
+            ExternalTextAction.SEARCH -> Icons.Rounded.Search
+        },
+        title = stringResource(action.titleRes),
+        subtitle = stringResource(
+            R.string.external_text_settings_subtitle,
+            stringResource(action.descriptionRes),
+            selectedLabel,
+        ),
+        onClick = onClick,
+    )
+}
+
+private fun AppSettings.defaultApp(action: ExternalTextAction): String? = when (action) {
+    ExternalTextAction.TRANSLATE -> defaultTranslator
+    ExternalTextAction.DEFINE -> defaultDictionary
+    ExternalTextAction.SEARCH -> defaultSearchApp
+}
+
+private fun AppSettings.withDefaultApp(action: ExternalTextAction, id: String?): AppSettings = when (action) {
+    ExternalTextAction.TRANSLATE -> copy(defaultTranslator = id)
+    ExternalTextAction.DEFINE -> copy(defaultDictionary = id)
+    ExternalTextAction.SEARCH -> copy(defaultSearchApp = id)
+}
+
+@Composable
+internal fun ReaderPanelBehaviorSettingsRows(
+    settings: AppSettings,
+    onUpdate: ((AppSettings) -> AppSettings) -> Unit,
+) {
+    SettingsSwitchRow(
+        icon = Icons.Rounded.DragHandle,
+        title = stringResource(R.string.settings_reader_collapsed_handle),
+        subtitle = stringResource(R.string.settings_reader_collapsed_handle_subtitle),
+        checked = settings.showCollapsedReaderHandle,
+        onCheckedChange = { checked -> onUpdate { it.copy(showCollapsedReaderHandle = checked) } },
+    )
+    SettingsDivider()
+    SettingsSwitchRow(
+        icon = Icons.Rounded.SwipeUp,
+        title = stringResource(R.string.settings_reader_expand_on_swipe),
+        subtitle = stringResource(R.string.settings_reader_expand_on_swipe_subtitle),
+        checked = settings.expandReaderPanelsOnSwipe,
+        onCheckedChange = { checked -> onUpdate { it.copy(expandReaderPanelsOnSwipe = checked) } },
+    )
+    SettingsDivider()
+    SettingsSwitchRow(
+        icon = Icons.Rounded.Timer,
+        title = stringResource(R.string.settings_auto_hide_return),
+        subtitle = stringResource(R.string.settings_auto_hide_return_subtitle),
+        checked = settings.autoHideReturnButton,
+        onCheckedChange = { checked -> onUpdate { it.copy(autoHideReturnButton = checked) } },
+    )
+}
+
+@Composable
+internal fun PrivacySettingsPage(
+    settings: AppSettings,
+    onUpdate: ((AppSettings) -> AppSettings) -> Unit,
+    onBack: () -> Unit,
+) {
+    val biometricsAvailable = rememberBiometricsAvailable()
+
+    SettingsPageScaffold(
+        title = stringResource(R.string.settings_privacy_title),
+        onBack = onBack,
+    ) {
+        SettingsSectionLabel(stringResource(R.string.settings_app_lock_section))
+        SettingsCard {
+            SettingsSwitchRow(
+                icon = Icons.Rounded.Fingerprint,
+                title = stringResource(R.string.app_lock_title),
+                subtitle = stringResource(
+                    if (biometricsAvailable) {
+                        R.string.app_lock_subtitle
+                    } else {
+                        R.string.app_lock_unavailable
+                    },
+                ),
+                checked = settings.appLock,
+                enabled = biometricsAvailable || settings.appLock,
+                onCheckedChange = { checked ->
+                    onUpdate { it.copy(appLock = checked) }
+                },
+            )
+
+            AnimatedVisibility(
+                visible = settings.appLock,
+                enter = expandVertically(tween(200)) + fadeIn(tween(200)),
+                exit = shrinkVertically(tween(200)) + fadeOut(tween(150)),
+            ) {
+                Column {
+                    SettingsDivider()
+                    SettingsControlRow(
+                        icon = Icons.Rounded.Timer,
+                        title = stringResource(R.string.settings_lock_delay_title),
+                        subtitle = stringResource(R.string.settings_lock_delay_subtitle),
+                        selected = settings.appLockDelay,
+                        options = listOf(
+                            AppLockDelay.IMMEDIATE to stringResource(
+                                R.string.settings_lock_delay_immediate_short,
+                            ),
+                            AppLockDelay.ONE_MINUTE to stringResource(
+                                R.string.settings_lock_delay_one_minute_short,
+                            ),
+                            AppLockDelay.FIFTEEN_MINUTES to stringResource(
+                                R.string.settings_lock_delay_fifteen_minutes_short,
+                            ),
+                        ),
+                        onSelected = { selected ->
+                            onUpdate { it.copy(appLockDelay = selected) }
+                        },
+                    )
+                }
+            }
+        }
+        SettingsHelper(stringResource(R.string.settings_privacy_helper))
+    }
+}
+
+@Composable
+private fun rememberBiometricsAvailable(): Boolean {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var available by remember(context) { mutableStateOf(canUseAppLock(context)) }
+
+    DisposableEffect(context, lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                available = canUseAppLock(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    return available
+}

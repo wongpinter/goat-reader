@@ -1,0 +1,523 @@
+package com.wongpinter.goatreader.data.backup
+
+import com.wongpinter.goatreader.data.AppSettings
+import com.wongpinter.goatreader.data.AppLockDelay
+import com.wongpinter.goatreader.data.AppTheme
+import com.wongpinter.goatreader.data.LightThemeDefault
+import com.wongpinter.goatreader.data.PageMargins
+import com.wongpinter.goatreader.data.PageTurnAnimation
+import com.wongpinter.goatreader.data.ReaderSettings
+import com.wongpinter.goatreader.data.ReadingMode
+import com.wongpinter.goatreader.data.ReadingStats
+import com.wongpinter.goatreader.data.StartupDestination
+import com.wongpinter.goatreader.data.model.BackupDocument
+import com.wongpinter.goatreader.data.model.BackupManifest
+import com.wongpinter.goatreader.data.model.BackupMode
+import com.wongpinter.goatreader.data.model.BackupSettings
+import com.wongpinter.goatreader.data.model.Book
+import com.wongpinter.goatreader.data.model.BookFormat
+import com.wongpinter.goatreader.data.model.Bookmark
+import com.wongpinter.goatreader.data.model.Quote
+import com.wongpinter.goatreader.data.model.QuoteColor
+import com.wongpinter.goatreader.data.model.ReadingProgress
+import com.wongpinter.goatreader.data.model.ReadingStatus
+import com.wongpinter.goatreader.data.model.Shelf
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
+import org.junit.Before
+import org.junit.Test
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.util.zip.ZipEntry
+import java.util.zip.ZipInputStream
+import java.util.zip.ZipOutputStream
+
+/**
+ * The backup format, end to end, without Android in the way.
+ *
+ * A backup that cannot be restored is worse than no backup, because the user
+ * believes they have one. So these tests care less about the happy path than
+ * about what happens to a file that is truncated, foreign, or hostile.
+ */
+class BackupArchiveTest {
+
+    private val workDir = File("build/tmp/backup_test")
+    private val booksDir = File(workDir, "books")
+    private val coversDir = File(workDir, "covers")
+    private val sourceDir = File(workDir, "source")
+
+    @Before
+    fun setUp() {
+        workDir.deleteRecursively()
+        listOf(booksDir, coversDir, sourceDir).forEach { it.mkdirs() }
+    }
+
+    private fun book(id: String, fileName: String? = "$id.epub") = Book(
+        id = id,
+        title = "Book $id",
+        author = "An Author",
+        format = BookFormat.EPUB,
+        fileName = fileName,
+        coverFileName = "$id.img",
+        addedAtMillis = 1_000L,
+        progress = ReadingProgress(chapterIndex = 3, fraction = 0.42f),
+        quotes = listOf(
+            Quote("q-$id", "a line worth keeping", 1, 2_000L, note = "why it matters", bookId = id,
+                color = QuoteColor.ROSE),
+        ),
+        bookmarks = listOf(Bookmark("m-$id", 10, 1, "preview", 3_000L, bookId = id)),
+        status = ReadingStatus.FINISHED,
+        rating = 5,
+        review = "Worth every page.",
+        readingSeconds = 4_242L,
+    )
+
+    private fun document(vararg books: Book) = BackupDocument(
+        books = books.toList(),
+        shelves = listOf(Shelf("s1", "Favourites", books.map { it.id }, 1_000L)),
+    )
+
+    private val stats = ReadingStats(mapOf("2026-08-09" to 3_600L), lastReadAtMillis = 1_785_000_000_000L)
+    private val settings = BackupSettings(
+        reader = ReaderSettings(fontSizeSp = 21f),
+        app = AppSettings(
+            theme = AppTheme.OLED, dailyGoalMinutes = 45,
+            autoHideReturnButton = false,
+            defaultTranslator = "translator.app/translator.app.ProcessText",
+            defaultDictionary = "colordict:dictionary.app/dictionary.app.Lookup",
+            defaultSearchApp = "search:search.app/search.app.Search",
+        ),
+    )
+
+    private fun writeArchive(
+        doc: BackupDocument,
+        mode: BackupMode = BackupMode.DATA,
+    ): ByteArray {
+        val out = ByteArrayOutputStream()
+        BackupArchive.write(
+            out = out,
+            document = doc,
+            stats = stats,
+            settings = settings,
+            mode = mode,
+            appVersion = "1.56",
+            createdAtMillis = 1_700_000_000_000L,
+            bookFile = { b -> b.fileName?.let { File(sourceDir, it) }?.takeIf { it.exists() } },
+            coverFile = { b -> b.coverFileName?.let { File(sourceDir, it) }?.takeIf { it.exists() } },
+        )
+        return out.toByteArray()
+    }
+
+    @Test
+    fun `text formats and user data survive full backup with exact source bytes`() {
+        val textBooks = listOf(BookFormat.TXT, BookFormat.MD).map { format ->
+            val id = format.name.lowercase()
+            val fileName = "$id.$id"
+            File(sourceDir, fileName).writeText("# Українська книжка\r\n\r\nLiteral **text**")
+            book(id, fileName).copy(format = format, coverFileName = null)
+        }
+        val bytes = writeArchive(document(*textBooks.toTypedArray()), BackupMode.FULL)
+        val contents = BackupArchive.read(ByteArrayInputStream(bytes), booksDir, coversDir)
+        assertEquals(2, contents.manifest.formatVersion)
+        for (original in textBooks) {
+            val restored = contents.document.books.single { it.id == original.id }
+            assertEquals(original, restored)
+            val restoredName = contents.restoredBookFiles.getValue(original.id)
+            assertTrue(File(sourceDir, original.fileName!!).readBytes().contentEquals(File(booksDir, restoredName).readBytes()))
+        }
+    }
+
+    // ------------------------------------------------------------ round trip
+
+    @Test
+    fun `fresh installation defaults survive a fully encoded settings backup`() {
+        val freshSettings = BackupSettings()
+        val out = ByteArrayOutputStream()
+        BackupArchive.write(
+            out = out,
+            document = document(),
+            stats = stats,
+            settings = freshSettings,
+            mode = BackupMode.DATA,
+            appVersion = "1.56",
+            createdAtMillis = 1_700_000_000_000L,
+        )
+
+        val restored = BackupArchive.read(
+            ByteArrayInputStream(out.toByteArray()), booksDir, coversDir,
+        )
+
+        assertEquals(BackupManifest.FORMAT_VERSION, restored.manifest.formatVersion)
+        assertEquals(freshSettings, restored.settings)
+    }
+
+    @Test
+    fun `external choices can be reset separately in settings backups`() {
+        val choices = settings.app
+        listOf(
+            choices.copy(defaultTranslator = null),
+            choices.copy(defaultDictionary = null),
+            choices.copy(defaultSearchApp = null),
+        ).forEach { appSettings ->
+            val expected = settings.copy(app = appSettings)
+            val out = ByteArrayOutputStream()
+            BackupArchive.write(
+                out = out,
+                document = document(),
+                stats = stats,
+                settings = expected,
+                mode = BackupMode.DATA,
+                appVersion = "1.56",
+                createdAtMillis = 1_700_000_000_000L,
+            )
+
+            val restored = BackupArchive.read(ByteArrayInputStream(out.toByteArray()), booksDir, coversDir)
+            assertEquals(BackupManifest.FORMAT_VERSION, restored.manifest.formatVersion)
+            assertEquals(expected, restored.settings)
+        }
+    }
+
+    @Test
+    fun `numeric reading margins survive global and per book settings backups`() {
+        val global = settings.copy(reader = ReaderSettings(pageMarginDp = 24))
+        val perBook = ReaderSettings(pageMargins = PageMargins.NORMAL, pageMarginDp = 38)
+        val out = ByteArrayOutputStream()
+        BackupArchive.write(
+            out = out,
+            document = document(book("a").copy(readerSettings = perBook)),
+            stats = stats,
+            settings = global,
+            mode = BackupMode.DATA,
+            appVersion = "1.56",
+            createdAtMillis = 1_700_000_000_000L,
+        )
+
+        val restored = BackupArchive.read(ByteArrayInputStream(out.toByteArray()), booksDir, coversDir)
+        assertEquals(BackupManifest.FORMAT_VERSION, restored.manifest.formatVersion)
+        assertEquals(global, restored.settings)
+        assertEquals(perBook, restored.document.books.single().readerSettings)
+    }
+
+    @Test
+    fun `everything the user made survives a data-only round trip`() {
+        val bytes = writeArchive(document(book("a"), book("b")))
+
+        val contents = BackupArchive.read(ByteArrayInputStream(bytes), booksDir, coversDir)
+
+        assertEquals(2, contents.document.books.size)
+        val a = contents.document.books.first { it.id == "a" }
+        assertEquals("Book a", a.title)
+        assertEquals(5, a.rating)
+        assertEquals("Worth every page.", a.review)
+        assertEquals(ReadingStatus.FINISHED, a.status)
+        assertEquals(4_242L, a.readingSeconds)
+        assertEquals(3, a.progress.chapterIndex)
+        assertEquals(0.42f, a.progress.fraction, 0.0001f)
+        assertEquals("a line worth keeping", a.quotes.single().text)
+        assertEquals("why it matters", a.quotes.single().note)
+        assertEquals(QuoteColor.ROSE, a.quotes.single().color)
+        assertEquals("preview", a.bookmarks.single().preview)
+        assertEquals(listOf("a", "b"), contents.document.shelves.single().bookIds)
+        assertEquals(3_600L, contents.stats?.dailySeconds?.get("2026-08-09"))
+        assertEquals(21f, contents.settings?.reader?.fontSizeSp)
+        assertEquals(AppTheme.OLED, contents.settings?.app?.theme)
+        assertEquals(45, contents.settings?.app?.dailyGoalMinutes)
+        assertEquals(false, contents.settings?.app?.autoHideReturnButton)
+        assertEquals(settings.app.defaultTranslator, contents.settings?.app?.defaultTranslator)
+        assertEquals(settings.app.defaultDictionary, contents.settings?.app?.defaultDictionary)
+        assertEquals(settings.app.defaultSearchApp, contents.settings?.app?.defaultSearchApp)
+    }
+
+    @Test
+    fun `variable font instances survive global and per book settings backups`() {
+        val chosen = ReaderSettings(font = com.wongpinter.goatreader.data.ReaderFont.CUSTOM,
+            customFontPath = "/fonts/variable.ttf", customFontAxes = mapOf("wght" to 700f, "wdth" to 75f))
+        val global = settings.copy(reader = chosen)
+        val perBook = chosen.copy(customFontAxes = mapOf("wght" to 900f, "wdth" to 100f))
+        val out = ByteArrayOutputStream()
+        BackupArchive.write(out, document(book("a").copy(readerSettings = perBook)), stats, global,
+            BackupMode.DATA, "BETA", 1_700_000_000_000L)
+        val restored = BackupArchive.read(ByteArrayInputStream(out.toByteArray()), booksDir, coversDir)
+        assertEquals(BackupManifest.FORMAT_VERSION, restored.manifest.formatVersion)
+        assertEquals(global, restored.settings)
+        assertEquals(perBook, restored.document.books.single().readerSettings)
+    }
+
+    @Test
+    fun `legacy heading override does not prevent restoring settings and annotations`() {
+        val original = writeArchive(document(book("a")))
+        val out = ByteArrayOutputStream()
+        ZipOutputStream(out).use { zip ->
+            ZipInputStream(ByteArrayInputStream(original)).use { input ->
+                while (true) {
+                    val entry = input.nextEntry ?: break
+                    val bytes = input.readBytes()
+                    zip.putNextEntry(ZipEntry(entry.name))
+                    zip.write(if (entry.name == "settings.json") {
+                        """{"reader":{"fontSizeSp":24},"app":{"centerHeadings":true,"dailyGoalMinutes":45}}""".toByteArray()
+                    } else bytes)
+                    zip.closeEntry()
+                }
+            }
+        }
+        val restored = BackupArchive.read(ByteArrayInputStream(out.toByteArray()), booksDir, coversDir)
+        assertEquals(24f, restored.settings?.reader?.fontSizeSp)
+        assertEquals(45, restored.settings?.app?.dailyGoalMinutes)
+        assertEquals("a line worth keeping", restored.document.books.single().quotes.single().text)
+        assertEquals("Worth every page.", restored.document.books.single().review)
+    }
+
+    @Test
+    fun `a data-only backup carries no book files`() {
+        File(sourceDir, "a.epub").writeText("pretend epub")
+        File(sourceDir, "a.img").writeText("pretend cover")
+
+        val bytes = writeArchive(document(book("a")), BackupMode.DATA)
+        val contents = BackupArchive.read(ByteArrayInputStream(bytes), booksDir, coversDir)
+
+        assertTrue(contents.restoredBookFiles.isEmpty())
+        assertTrue(contents.restoredCovers.isEmpty())
+        assertFalse(File(booksDir, "a.epub").exists())
+        // The record and everything written about it is still there.
+        assertEquals(1, contents.document.books.single().quotes.size)
+    }
+
+    @Test
+    fun `a full backup carries the book files and puts them back`() {
+        File(sourceDir, "a.epub").writeText("pretend epub")
+        File(sourceDir, "a.img").writeText("pretend cover")
+
+        val bytes = writeArchive(document(book("a")), BackupMode.FULL)
+        val contents = BackupArchive.read(ByteArrayInputStream(bytes), booksDir, coversDir)
+
+        assertEquals("a.epub", contents.restoredBookFiles["a"])
+        assertEquals("pretend epub", File(booksDir, "a.epub").readText())
+        assertTrue(contents.restoredCovers.contains("a.img"))
+        assertEquals("pretend cover", File(coversDir, "a.img").readText())
+    }
+
+    @Test
+    fun `a book whose file was already missing still backs up`() {
+        val bytes = writeArchive(document(book("a", fileName = null)), BackupMode.FULL)
+        val contents = BackupArchive.read(ByteArrayInputStream(bytes), booksDir, coversDir)
+
+        assertNull(contents.document.books.single().fileName)
+        assertEquals(1, contents.document.books.single().quotes.size)
+    }
+
+    @Test
+    fun `both backup modes preserve multilingual thoughts exact anchors and orphaned bookmarks`() {
+        val original = book("saved", fileName = null).copy(
+            quotes = listOf(Quote("q", "Текст цитати\nSecond paragraph", 3, 1000,
+                startItem = 17, startChar = 45, endItem = 19, endChar = 12,
+                note = "Мої думки 🐸\nAnother line", bookId = "saved", updatedAtMillis = 2000)),
+            bookmarks = listOf(Bookmark("b", 24, 4, "Remember this", 1000,
+                orphaned = true, bookId = "saved", updatedAtMillis = 3000)),
+        )
+        for (mode in BackupMode.entries) {
+            val restored = BackupArchive.read(ByteArrayInputStream(writeArchive(document(original), mode)), booksDir, coversDir)
+            assertEquals(original.quotes, restored.document.books.single().quotes)
+            assertEquals(original.bookmarks, restored.document.books.single().bookmarks)
+            assertNull(restored.document.books.single().fileName)
+        }
+    }
+
+    // --------------------------------------------------------- the manifest
+
+    @Test
+    fun `the manifest can be read without unpacking the archive`() {
+        val bytes = writeArchive(document(book("a"), book("b")), BackupMode.FULL)
+
+        val manifest = BackupArchive.readManifest(ByteArrayInputStream(bytes))
+
+        assertEquals(BackupManifest.FORMAT_VERSION, manifest.formatVersion)
+        assertEquals("1.56", manifest.appVersion)
+        assertEquals(1_700_000_000_000L, manifest.createdAtMillis)
+        assertEquals(BackupMode.FULL, manifest.mode)
+        assertEquals(2, manifest.bookCount)
+        assertEquals(2, manifest.quoteCount)
+    }
+
+    // ------------------------------------------------------------- bad input
+
+    @Test
+    fun `a zip that is not a backup is reported clearly`() {
+        val out = ByteArrayOutputStream()
+        ZipOutputStream(out).use {
+            it.putNextEntry(ZipEntry("holiday.jpg"))
+            it.write(ByteArray(16))
+            it.closeEntry()
+        }
+
+        try {
+            BackupArchive.read(ByteArrayInputStream(out.toByteArray()), booksDir, coversDir)
+            fail("Expected a foreign zip to be rejected")
+        } catch (e: BackupFormatException) {
+            assertTrue(e.message.orEmpty().contains("manifest"))
+        }
+    }
+
+    @Test
+    fun `a truncated backup is reported rather than half-applied`() {
+        val bytes = writeArchive(document(book("a")))
+
+        try {
+            BackupArchive.read(ByteArrayInputStream(bytes.copyOf(bytes.size / 2)), booksDir, coversDir)
+            fail("Expected a truncated archive to be rejected")
+        } catch (e: Exception) {
+            assertTrue(
+                "should be a format error, was ${e::class.simpleName}",
+                e is BackupFormatException || e is java.io.IOException,
+            )
+        }
+    }
+
+    @Test
+    fun `physical truncation in optional settings or stats is not swallowed`() {
+        for (name in listOf("settings.json", "stats.json")) {
+            val out = ByteArrayOutputStream()
+            var payloadStart = 0
+            val payload = (" ".repeat(2048) + "{}").toByteArray()
+            ZipOutputStream(out).use { zip ->
+                zip.putNextEntry(ZipEntry("manifest.json"))
+                zip.write("""{"formatVersion":1,"bookCount":0}""".toByteArray())
+                zip.closeEntry()
+                zip.putNextEntry(ZipEntry("library.json"))
+                zip.write("""{"books":[],"shelves":[]}""".toByteArray())
+                zip.closeEntry()
+                zip.putNextEntry(ZipEntry(name).apply {
+                    method = ZipEntry.STORED
+                    size = payload.size.toLong()
+                    compressedSize = size
+                    crc = java.util.zip.CRC32().apply { update(payload) }.value
+                })
+                payloadStart = out.size()
+                zip.write(payload)
+                zip.closeEntry()
+            }
+            val truncated = out.toByteArray().copyOf(payloadStart + payload.size / 2)
+            org.junit.Assert.assertThrows(java.io.IOException::class.java) {
+                BackupArchive.read(ByteArrayInputStream(truncated), booksDir, coversDir)
+            }
+        }
+    }
+
+    @Test
+    fun `a backup from a newer app says so instead of losing data`() {
+        val out = ByteArrayOutputStream()
+        ZipOutputStream(out).use { zip ->
+            zip.putNextEntry(ZipEntry("manifest.json"))
+            zip.write("""{"formatVersion":99,"bookCount":3}""".toByteArray())
+            zip.closeEntry()
+        }
+
+        try {
+            BackupArchive.readManifest(ByteArrayInputStream(out.toByteArray()))
+            fail("Expected a newer format version to be refused")
+        } catch (e: BackupFormatException) {
+            assertTrue(e.message.orEmpty().contains("newer version"))
+        }
+    }
+
+    @Test
+    fun `a damaged stats section does not cost the user their quotes`() {
+        val out = ByteArrayOutputStream()
+        ZipOutputStream(out).use { zip ->
+            zip.putNextEntry(ZipEntry("manifest.json"))
+            zip.write("""{"formatVersion":1,"bookCount":1}""".toByteArray())
+            zip.closeEntry()
+            zip.putNextEntry(ZipEntry("library.json"))
+            zip.write(
+                """{"books":[{"id":"a","title":"Book a","format":"EPUB","addedAtMillis":1,
+                   "quotes":[{"id":"q","text":"kept","chapterIndex":0,"createdAtMillis":1}]}],
+                   "shelves":[]}""".trimIndent().toByteArray(),
+            )
+            zip.closeEntry()
+            zip.putNextEntry(ZipEntry("stats.json"))
+            zip.write("not json at all".toByteArray())
+            zip.closeEntry()
+        }
+
+        val contents = BackupArchive.read(ByteArrayInputStream(out.toByteArray()), booksDir, coversDir)
+
+        assertNull("the damaged section is simply absent", contents.stats)
+        assertEquals("kept", contents.document.books.single().quotes.single().text)
+    }
+
+    @Test
+    fun `sparse older settings retain their previous defaults`() {
+        val out = ByteArrayOutputStream()
+        ZipOutputStream(out).use { zip ->
+            zip.putNextEntry(ZipEntry("manifest.json"))
+            zip.write("""{"formatVersion":1,"bookCount":0}""".toByteArray())
+            zip.closeEntry()
+            zip.putNextEntry(ZipEntry("library.json"))
+            zip.write("""{"books":[],"shelves":[]}""".toByteArray())
+            zip.closeEntry()
+            zip.putNextEntry(ZipEntry("settings.json"))
+            zip.write(
+                """{"reader":{"fontSizeSp":20.0},"app":{"theme":"OLED","haptics":false}}"""
+                    .toByteArray(),
+            )
+            zip.closeEntry()
+        }
+
+        val restored = BackupArchive.read(
+            ByteArrayInputStream(out.toByteArray()),
+            booksDir,
+            coversDir,
+        ).settings
+        val saved = requireNotNull(restored) { "Expected old settings to decode" }
+        val app = saved.app
+
+        assertEquals(20f, saved.reader.fontSizeSp)
+        assertTrue(saved.reader.justify)
+        assertTrue(saved.reader.hyphenation)
+        assertFalse(saved.reader.bookStyles)
+        assertEquals(PageMargins.NORMAL, saved.reader.pageMargins)
+        assertNull(saved.reader.pageMarginDp)
+        assertEquals(20, saved.reader.sideMarginDp)
+        assertEquals(ReadingMode.SCROLL, saved.reader.readingMode)
+        assertFalse(saved.reader.dropCaps)
+        assertEquals(PageTurnAnimation.SLIDE, saved.reader.pageTurnAnimation)
+
+        assertEquals(AppTheme.OLED, app.theme)
+        assertFalse(app.haptics)
+        assertTrue(app.followSystemTheme)
+        assertEquals(LightThemeDefault.LIGHT, app.lightThemeDefault)
+        assertTrue(app.autoInvertImages)
+        assertFalse(app.dynamicColor)
+        assertEquals(StartupDestination.LIBRARY, app.startupDestination)
+        assertEquals(AppLockDelay.ONE_MINUTE, app.appLockDelay)
+        assertEquals(BackupMode.DATA, app.backupMode)
+        assertNull(app.defaultTranslator)
+        assertNull(app.defaultDictionary)
+        assertNull(app.defaultSearchApp)
+    }
+
+    @Test
+    fun `an entry that tries to escape the app directory cannot`() {
+        val out = ByteArrayOutputStream()
+        ZipOutputStream(out).use { zip ->
+            zip.putNextEntry(ZipEntry("manifest.json"))
+            zip.write("""{"formatVersion":1,"bookCount":1}""".toByteArray())
+            zip.closeEntry()
+            zip.putNextEntry(ZipEntry("library.json"))
+            zip.write("""{"books":[],"shelves":[]}""".toByteArray())
+            zip.closeEntry()
+            zip.putNextEntry(ZipEntry("books/../../../escaped.epub"))
+            zip.write("hostile".toByteArray())
+            zip.closeEntry()
+        }
+
+        BackupArchive.read(ByteArrayInputStream(out.toByteArray()), booksDir, coversDir)
+
+        assertFalse(File(workDir, "escaped.epub").exists())
+        assertFalse(File(workDir.parentFile, "escaped.epub").exists())
+        assertTrue("it lands inside books/ or not at all", File(booksDir, "escaped.epub").exists())
+    }
+}

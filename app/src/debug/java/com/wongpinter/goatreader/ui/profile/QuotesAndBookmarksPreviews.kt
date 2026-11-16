@@ -1,0 +1,107 @@
+package com.wongpinter.goatreader.ui.profile
+
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.tooling.preview.Preview
+import com.wongpinter.goatreader.data.AppTheme
+import com.wongpinter.goatreader.data.model.Book
+import com.wongpinter.goatreader.data.model.BookFormat
+import com.wongpinter.goatreader.data.model.Bookmark
+import com.wongpinter.goatreader.data.model.Quote
+import com.wongpinter.goatreader.ui.theme.GoatReaderTheme
+
+private val sampleAnnotatedBooks = listOf(
+    Book("a", "A Room of One’s Own", "Virginia Woolf", BookFormat.EPUB, fileName = "a.epub", addedAtMillis = 0,
+        quotes = listOf(
+            Quote("q1", "One cannot think well, love well, sleep well, if one has not dined well.", 2, 2,
+                startItem = 20, startChar = 0, note = "The everyday things are not separate from the life of the mind. I want to remember that."),
+            Quote("q2", "There is no gate, no lock, no bolt that you can set upon the freedom of my mind.", 3, 1,
+                startItem = 40, startChar = 0),
+        ),
+        bookmarks = listOf(Bookmark("b1", 20, 2, "One cannot think well, love well, sleep well, if one has not dined well.", 5))),
+    Book("b", "The Art of Noticing", "Rob Walker", BookFormat.EPUB, addedAtMillis = 0,
+        quotes = listOf(Quote("q3", "A small detail can change the way we see an ordinary day.", 0, 1)),
+        bookmarks = listOf(Bookmark("b2", 0, 0, "A small detail can change the way we see an ordinary day.", 2))),
+)
+
+@Preview(name = "Quotes & Bookmarks · books", widthDp = 393, heightDp = 852, showSystemUi = true)
+@Composable
+private fun SavedBooksPreview() = GoatReaderTheme(AppTheme.WHITE) {
+    QuotesAndBookmarksContent(sampleAnnotatedBooks)
+}
+
+@Preview(name = "Quotes · book", widthDp = 393, heightDp = 852, showSystemUi = true)
+@Composable
+private fun SavedQuotesPreview() = GoatReaderTheme(AppTheme.WHITE) {
+    QuotesAndBookmarksContent(sampleAnnotatedBooks, initialBookId = "a")
+}
+
+@Preview(name = "Beige · quotes and thoughts", widthDp = 393, heightDp = 882, showSystemUi = true)
+@Composable
+private fun BeigeSavedQuotesPreview() = GoatReaderTheme(AppTheme.SEPIA) {
+    QuotesAndBookmarksContent(sampleAnnotatedBooks, initialBookId = "a")
+}
+
+@Preview(name = "Beige · bookmarks · large text", widthDp = 360, heightDp = 800, showSystemUi = true, fontScale = 1.5f)
+@Composable
+private fun BeigeSavedBookmarksPreview() = GoatReaderTheme(AppTheme.SEPIA) {
+    QuotesAndBookmarksContent(sampleAnnotatedBooks, initialBookId = "a", initialTab = 1)
+}
+
+@Preview(name = "Bookmarks · midnight", widthDp = 360, heightDp = 800, showSystemUi = true)
+@Composable
+private fun SavedBookmarksPreview() = GoatReaderTheme(AppTheme.OLED) {
+    QuotesAndBookmarksContent(sampleAnnotatedBooks, initialBookId = "a", initialTab = 1)
+}
+
+@Preview(name = "Thought editor · large text", widthDp = 360, heightDp = 800, fontScale = 1.5f, showSystemUi = true)
+@Composable
+private fun SavedThoughtPreview() = GoatReaderTheme(AppTheme.WHITE) {
+    QuotesAndBookmarksContent(sampleAnnotatedBooks, initialBookId = "a",
+        editor = QuoteThoughtEditor("a", "q1", "", "This is what I want to remember."))
+}
+
+@Preview(name = "Empty collection", widthDp = 360, heightDp = 800, showSystemUi = true)
+@Composable
+private fun EmptyQuotesAndBookmarksPreview() = GoatReaderTheme(AppTheme.WHITE) {
+    QuotesAndBookmarksContent(emptyList())
+}
+
+// Same content shape as the owner's screenshots: absent author, long quote, two bookmarks.
+private val screenshotBook = Book(
+    id = "frankenstein", title = "Frankenstein", format = BookFormat.EPUB,
+    fileName = "sample.epub", addedAtMillis = 0,
+    quotes = listOf(
+        Quote("q1", "Such was the history of my beloved cottagers. It impressed me deeply. I learned, from the views of social life which it developed, to admire their virtues, and to deprecate the vices of mankind.",
+            25, 1, startItem = 20, startChar = 0),
+        Quote("q2", "I can hardly describe to you the effect of these books. They produced in me an infinity of new images and feelings.",
+            25, 2, startItem = 30, startChar = 0),
+    ),
+    bookmarks = listOf(
+        Bookmark("b1", 33, 32, "“You well know, Victor, that our union had been the favourite plan of your parents ever since".take(90), 2),
+        Bookmark("b2", 26, 25, "“I can hardly describe to you the effect of these books. They produced in me an infinity of".take(90), 1),
+    ),
+)
+
+@Preview(name = "Screenshot comparison · quotes", widthDp = 393, heightDp = 882, showSystemUi = true)
+@Composable
+private fun ScreenshotQuotesPreview() = GoatReaderTheme(AppTheme.WHITE) {
+    QuotesAndBookmarksContent(listOf(screenshotBook), initialBookId = screenshotBook.id)
+}
+
+@Preview(name = "Screenshot comparison · bookmarks", widthDp = 393, heightDp = 882, showSystemUi = true)
+@Composable
+private fun ScreenshotBookmarksPreview() = GoatReaderTheme(AppTheme.WHITE) {
+    QuotesAndBookmarksContent(listOf(screenshotBook), initialBookId = screenshotBook.id, initialTab = 1)
+}
+
+@Preview(name = "Long quote · midnight", widthDp = 360, heightDp = 800, showSystemUi = true)
+@Composable
+private fun LongQuoteMidnightPreview() = GoatReaderTheme(AppTheme.OLED) {
+    QuotesAndBookmarksContent(listOf(screenshotBook), initialBookId = screenshotBook.id)
+}
+
+@Preview(name = "Book with bookmarks only", widthDp = 360, heightDp = 800, showSystemUi = true)
+@Composable
+private fun BookmarkOnlyBookPreview() = GoatReaderTheme(AppTheme.WHITE) {
+    QuotesAndBookmarksContent(listOf(screenshotBook.copy(quotes = emptyList())), initialBookId = screenshotBook.id)
+}
