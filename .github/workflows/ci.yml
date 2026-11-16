@@ -43,6 +43,19 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      - name: Restore release signing key
+        if: github.event_name != 'pull_request'
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.GOATREADER_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$RELEASE_KEYSTORE_BASE64" ]; then
+            echo "::error::Release signing keystore secret is required for branch and tag builds."
+            exit 1
+          fi
+          umask 077
+          printf '%s' "$RELEASE_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/goatreader-release.p12"
+          echo "GOATREADER_KEYSTORE_PATH=$RUNNER_TEMP/goatreader-release.p12" >> "$GITHUB_ENV"
+
       - name: Run unit tests
         run: ./gradlew test --stacktrace
 
@@ -50,7 +63,29 @@ jobs:
         run: ./gradlew assembleDebug --stacktrace
 
       - name: Verify optimized release and Android lint
+        env:
+          GOATREADER_KEYSTORE_PASSWORD: ${{ secrets.GOATREADER_KEYSTORE_PASSWORD }}
+          GOATREADER_KEY_ALIAS: ${{ secrets.GOATREADER_KEY_ALIAS }}
+          GOATREADER_KEY_PASSWORD: ${{ secrets.GOATREADER_KEY_PASSWORD }}
         run: ./gradlew :app:assembleRelease :app:lintDebug :app:lintRelease --stacktrace --max-workers=2
+
+      - name: Verify release APK signing certificate
+        if: github.event_name != 'pull_request'
+        run: |
+          actual="$($ANDROID_HOME/build-tools/37.0.0/apksigner verify --print-certs app/build/outputs/apk/release/app-release.apk | awk -F': ' '/Signer #1 certificate SHA-256 digest:/ { gsub(":", "", $2); print tolower($2) }')"
+          expected="5233039b03e8b5e96137714428c574a444cc3b264340dd71993d9c472dfe669f"
+          if [ "$actual" != "$expected" ]; then
+            echo "::error::Release APK signing certificate fingerprint mismatch."
+            exit 1
+          fi
+
+      - name: Upload signed Release APK
+        if: success() && github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: GoatReader-release
+          path: app/build/outputs/apk/release/*.apk
+          retention-days: 30
 
       - name: Upload Debug APK
         if: success()
